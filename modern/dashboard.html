@@ -25,10 +25,11 @@
   button { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
   button:hover { background: #f3f4f6; } button.primary { background: #0969da; color: #fff; border-color: #0969da; }
   input { font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; width: 160px; }
+  td code.ref { display: inline-block; max-width: 140px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
   pre { background: var(--bg); padding: 8px; border-radius: 6px; max-height: 220px; overflow: auto; font-size: 12px; margin: 0; }
-  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; }
   .kpi { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
-  .kpi b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .kpi b { display: block; font-size: 17px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .kpi span { color: var(--muted); font-size: 12px; }
 </style>
 </head>
@@ -147,7 +148,7 @@ async function refresh() {
   $("payments").innerHTML = table(s.payments, [
     ["Payment", p => esc(p.payment_id)], ["Amount", p => cents(p.amount_cents), "num"],
     ["Status", p => `<b>${esc(p.status)}</b>${p.pending_return ? " <span class='warn'>(return parked)</span>" : ""}`],
-    ["Provider ref", p => `<code>${esc(p.provider_payment_id || "—")}</code>`],
+    ["Provider ref", p => `<code class="ref" title="${esc(p.provider_payment_id || "")}">${esc(p.provider_payment_id || "—")}</code>`],
     ["Last submission", p => esc(p.last_submission_outcome || "")]]);
   $("journal").innerHTML = table(s.journal, [
     ["Entry", j => `<code>${esc(j.entry_id)}</code>`], ["Effect", j => esc(j.effect)], ["Side", j => esc(j.side)],
