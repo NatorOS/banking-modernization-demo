@@ -40,6 +40,17 @@ fault-injection hooks for crash/race scenarios. It runs from the operator's mach
 remote demo and API concurrency checks separately exercise the deployed Lambda role, IAM,
 routing and runtime. Neither is a claim of production readiness or exhaustive race coverage.
 
+## Pending follow-ups
+
+- **Tests added after this verification have not run on real DynamoDB.** Four concurrent
+  duplicate-webhook tests (settlement and return, each with the same event ID and with
+  distinct event IDs for one effect) and the dashboard 6b duplicate-return check have run only
+  on SQLite and moto. Run the commands below to verify them; `--filter concurrent` includes them.
+- **Scoped deploy role.** Deployment used the operator's root login. Replace it with a deploy
+  role limited to the application stack (CloudFormation, Lambda, API Gateway, CloudWatch Logs,
+  the simulator secret, and `iam:PassRole` for the Lambda execution role only). IAM has not
+  been changed yet.
+
 ## Repeat verification
 
 ```bash

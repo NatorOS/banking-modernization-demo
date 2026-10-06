@@ -53,6 +53,8 @@
       <button data-act="duplicate-settlement">4b · Duplicate settlement (new event ID)</button>
       <button data-act="return-pay-002">5 · Return PAY-002 (R01)</button>
       <button data-act="replay-return">6 · Replay return</button>
+      <button data-act="provider-event" data-label="6b · Duplicate return"
+              data-body='{"payment_id": "PAY-002", "type": "returned", "variant": 2}'>6b · Duplicate return (new event ID)</button>
       <button data-act="reconcile-pending">Reconcile pending</button>
       <button data-act="refresh">Refresh</button>
     </div>
@@ -173,11 +175,11 @@ async function loadRecon() {
     (data.explained_exceptions.length ? "<h3>Explained exceptions</h3>" + table(data.explained_exceptions, [["Item", e => esc(e.payment_id || e.event_id)], ["Explanation", e => esc(e.explanation)]]) : "");
 }
 
-async function act(name, label) {
+async function act(name, label, body = {}) {
   const base = `/api/namespaces/${encodeURIComponent(ns())}`;
   if (name === "refresh") { clearLastResponse(); return refresh(); }
   const path = name === "reset" ? `${base}/reset` : name === "reconcile-pending" ? `${base}/reconcile-pending` : `${base}/demo/${name}`;
-  const {status, data} = await api("POST", path, {});
+  const {status, data} = await api("POST", path, body);
   $("raw").textContent = JSON.stringify(data, null, 2);
   const results = data.results || [];
   const summary = results.map(r => r.outcome || r.error?.code || "").filter(Boolean).join(", ")
@@ -186,7 +188,7 @@ async function act(name, label) {
   // Only a successful action moves the expected stage; a failed one keeps the current comparison.
   const succeeded = status === 200 && results.every(r => !r.error && (r.http_status ?? 200) < 400);
   if (succeeded) {
-    if (name === "return-pay-002" || name === "replay-return") stage = "after_return";
+    if (name === "return-pay-002" || name === "replay-return" || (name === "provider-event" && body.type === "returned")) stage = "after_return";
     if ((name === "settle-all" && results.length) || name.includes("settlement")) stage = "after_settlement";
     if (name === "reset") stage = "";
   }
@@ -198,7 +200,7 @@ function clearLastResponse() {
   $("last").textContent = "";
 }
 
-document.querySelectorAll("button[data-act]").forEach(b => b.addEventListener("click", () => act(b.dataset.act, b.dataset.label)));
+document.querySelectorAll("button[data-act]").forEach(b => b.addEventListener("click", () => act(b.dataset.act, b.dataset.label, b.dataset.body ? JSON.parse(b.dataset.body) : {})));
 document.querySelectorAll("button[data-stage]").forEach(b => b.addEventListener("click", () => { stage = b.dataset.stage; loadRecon(); }));
 $("ns").addEventListener("change", () => { clearLastResponse(); stage = ""; refresh(); });
 loadLegacy(); refresh();

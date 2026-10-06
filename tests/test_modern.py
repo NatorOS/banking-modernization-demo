@@ -200,6 +200,75 @@ class BehaviorSuite:
         self.assertEqual(self.balance()["reserved_cents"], 12500)
         self.assert_invariants()
 
+    def deliver_concurrently(self, events, ns=NS):
+        """Deliver signed events from parallel threads released together; return their outcomes."""
+        deliveries = [self.provider.signed_delivery(e) for e in events]
+        barrier = threading.Barrier(len(deliveries), timeout=30)
+        outcomes, errors, lock = [], [], threading.Lock()
+
+        def worker(body, headers):
+            try:
+                barrier.wait()
+                outcome = self.service.ingest_webhook(ns, body, headers)["outcome"]
+                with lock:
+                    outcomes.append(outcome)
+            except Exception as exc:  # noqa: BLE001 - collected for assertion
+                with lock:
+                    errors.append(exc)
+
+        threads = [threading.Thread(target=worker, args=d) for d in deliveries]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(errors, [])
+        return sorted(outcomes)
+
+    def assert_recorded_outcomes(self, events, outcomes):
+        ids = {e["event_id"] for e in events}
+        recorded = [d["outcome"] for d in self.service.snapshot(NS)["deliveries"] if d["event_id"] in ids]
+        self.assertEqual(sorted(recorded), outcomes)
+
+    def race_settlements(self, distinct_ids, copies=6):
+        self.submit("PAY-001")
+        key = self.payment("PAY-001")["provider_idempotency_key"]
+        events = [self.provider.settlement_event(NS, key, i if distinct_ids else 0) for i in range(copies)]
+        outcomes = self.deliver_concurrently(events)
+        duplicate = "DUPLICATE_EFFECT" if distinct_ids else "DUPLICATE_EVENT"
+        self.assertEqual(outcomes, sorted(["APPLIED"] + [duplicate] * (copies - 1)))
+        self.assert_recorded_outcomes(events, outcomes)
+        self.assertEqual(self.payment("PAY-001")["status"], "SETTLED")
+        self.assertEqual(len(self.service.snapshot(NS)["journal"]), 2)
+        b = self.assert_invariants()
+        self.assertEqual((b["cash_cents"], b["reserved_cents"], b["available_cents"]), (87500, 0, 87500))
+
+    def race_returns(self, distinct_ids, copies=6):
+        self.submit("PAY-002")
+        self.settle("PAY-002")
+        key = self.payment("PAY-002")["provider_idempotency_key"]
+        events = [self.provider.return_event(NS, key, "R01", i if distinct_ids else 0) for i in range(copies)]
+        outcomes = self.deliver_concurrently(events)
+        duplicate = "DUPLICATE_EFFECT" if distinct_ids else "DUPLICATE_EVENT"
+        self.assertEqual(outcomes, sorted(["APPLIED"] + [duplicate] * (copies - 1)))
+        self.assert_recorded_outcomes(events, outcomes)
+        self.assertEqual(self.payment("PAY-002")["status"], "RETURNED")
+        journal = self.service.snapshot(NS)["journal"]
+        self.assertEqual((len(journal), len([j for j in journal if j["effect"] == "RETURN"])), (4, 2))
+        b = self.assert_invariants()
+        self.assertEqual((b["cash_cents"], b["reserved_cents"], b["available_cents"]), (100000, 0, 100000))
+
+    def test_concurrent_same_settlement_event_applies_once(self):
+        self.race_settlements(distinct_ids=False)
+
+    def test_concurrent_distinct_settlement_events_apply_one_effect(self):
+        self.race_settlements(distinct_ids=True)
+
+    def test_concurrent_same_return_event_applies_once(self):
+        self.race_returns(distinct_ids=False)
+
+    def test_concurrent_distinct_return_events_apply_one_effect(self):
+        self.race_returns(distinct_ids=True)
+
     def test_concurrent_attempts_to_spend_the_same_funds(self):
         self.service.reset(NS, opening_cash_cents=1000)
         outcomes, lock = [], threading.Lock()
@@ -626,6 +695,12 @@ class BehaviorSuite:
         self.assertEqual(post("/demo/replay-settlement")[1]["results"][0]["outcome"], "DUPLICATE_EVENT")
         self.assertEqual(post("/demo/return-pay-002")[1]["results"][0]["outcome"], "APPLIED")
         self.assertEqual(post("/demo/replay-return")[1]["results"][0]["outcome"], "DUPLICATE_EVENT")
+        before = self.service.snapshot(NS)
+        # Dashboard 6b: a new event ID for the same return, through the simulated provider-event flow.
+        status, body = post("/demo/provider-event", {"payment_id": "PAY-002", "type": "returned", "variant": 2})
+        self.assertEqual((status, body["results"][0]["outcome"]), (200, "DUPLICATE_EFFECT"))
+        after = self.service.snapshot(NS)
+        self.assertEqual((after["balance"], after["journal"]), (before["balance"], before["journal"]))
         status, _, raw, _ = self.app.handle("GET", f"/api/namespaces/{NS}/reconciliation", {}, b"", "stage=after_return")
         self.assertEqual(json.loads(raw)["status"], "PASS")
         self.assertEqual(self.app.handle("GET", "/api/nope")[0], 404)

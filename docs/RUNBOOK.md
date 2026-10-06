@@ -8,8 +8,8 @@ third party or moves money.
 ```bash
 git clone https://github.com/NatorOS/banking-modernization-demo.git
 cd banking-modernization-demo
-git checkout devin/1791310804-event-driven-payments   # until the PR is merged
-python3 --version                                       # 3.13+
+git checkout main
+python3 --version   # 3.13+
 ```
 
 Local mode needs only the standard library. To run the DynamoDB half of the test suite, also
@@ -60,14 +60,20 @@ python3 -m modern.server            # http://127.0.0.1:8000/
 Keep namespace `demo-local` and click in order:
 
 1. **Reset namespace**: starts a new run; cash $1,000.00, no payments.
-2. **Submit fixtures**: three `SUBMITTED` payments; reserved $185.00, available $815.00.
+2. **Submit fixtures**: three `SUBMITTED` payments; reserved $185.00, available $815.00; no journal rows.
+   - **2b · Retry submissions**: the same Idempotency-Keys replay; still three payments and $185.00 reserved.
 3. **Settle**: modern outcome equals the legacy panel ($815.00 cash; $185.00 debits and
-   credits); reconciliation shows `PASS` against the golden result.
+   credits; six journal rows); reconciliation shows `PASS` against the golden result.
 4. **Replay settlement (same event ID)**: the event history shows `DUPLICATE_EVENT`; balances
    are unchanged.
+   - **4b · Duplicate settlement (new event ID)**: `DUPLICATE_EFFECT`; balances and journal unchanged.
 5. **Return PAY-002 (R01)**: PAY-002 is `RETURNED`; cash $850.00; debits and credits $220.00;
-   reconciliation shows `PASS` against `after_return`.
+   eight journal rows; reconciliation shows `PASS` against `after_return` (14/14).
 6. **Replay return**: `DUPLICATE_EVENT`; nothing changes.
+   - **6b · Duplicate return (new event ID)**: a new simulated return event for PAY-002 is
+     `DUPLICATE_EFFECT`; cash $850.00, debits and credits $220.00 and eight journal rows unchanged.
+
+[INTERVIEW_TALK_TRACK.md](INTERVIEW_TALK_TRACK.md) is a timed five-minute narration of this sequence.
 
 The talking points are the immutable journal panel (compensating entries, never edits), the
 event history (every delivery, including duplicates and rejections) and the reconciliation panel.
