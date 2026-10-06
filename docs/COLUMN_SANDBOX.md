@@ -1,6 +1,6 @@
 # Column sandbox integration brief
 
-The operator has created a Column sandbox. Credentials have not yet been provisioned to this repository or Devin. The mandatory deterministic simulator remains the reproducible correctness test; a verified Column sandbox flow is the desired external-provider demonstration once access is ready.
+The operator has created a Column sandbox and stored its API key in AWS Secrets Manager: `arn:aws:secretsmanager:us-east-1:784620264480:secret:banking-modernization-demo/column-sandbox-IZrTpn`. On October 6, 2026, a read-only `GET /bank-accounts?limit=1` request returned HTTP 200 with an empty account list. Authentication is verified; no payment flow has been executed. Credentials are not stored in this repository or provisioned to Devin. The mandatory deterministic simulator remains the reproducible correctness test; a verified Column sandbox flow is the desired external-provider demonstration once access is ready.
 
 ## Verified documentation entry points
 
@@ -23,3 +23,20 @@ Use a separate namespace for each run and record actual account/transfer identif
 ## Evidence before calling this integrated
 
 Record successful sandbox authentication, created synthetic resources, an actual submitted transfer, observed settlement/return state and reconciliation output. Show the provider name and mode on the dashboard. Keep local simulated results and actual sandbox results distinguishable. No integration has been verified merely because an account exists.
+
+## Scoped secret access
+
+Attach the following permission to the approved Devin AWS role and, later, the application runtime role if needed. This policy grants only retrieval of this secret; it does not establish role trust or deployment access.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "arn:aws:secretsmanager:us-east-1:784620264480:secret:banking-modernization-demo/column-sandbox-IZrTpn"
+    }
+  ]
+}
+```
