@@ -1,6 +1,6 @@
 # Devin task: modernize a synthetic bank payment integration on AWS
 
-Repository: https://github.com/mortenator/banking-modernization-demo
+Repository: https://github.com/NatorOS/banking-modernization-demo
 
 AWS target: NatorOS account `784620264480`, `us-east-1`. The foundation stack is deployed. DynamoDB table: `banking-modernization-demo-foundation-DemoTable-1712SBKSQJZXT`; private artifact bucket: `banking-modernization-demo-foundation-artifacts-uqadfnsiynfs`. No modern application is deployed yet. Column sandbox authentication was verified on October 6, 2026 with a read-only API request (HTTP 200). Its API key is stored in AWS Secrets Manager at `arn:aws:secretsmanager:us-east-1:784620264480:secret:banking-modernization-demo/column-sandbox-IZrTpn` as JSON with an `api_key` field. Devin access to that secret still requires a scoped AWS integration. No sandbox entities, accounts or payments have been created by this setup. Resource names are configuration, not credentials; do not assume this grants AWS or Column access.
 

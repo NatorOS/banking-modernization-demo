@@ -2,7 +2,7 @@
 
 ## GitHub and Devin
 
-This public repo contains only original synthetic starter material. In Devin, authorize access to `mortenator/banking-modernization-demo`, start a session with docs/DEVIN_PROMPT.md, and retain the completed session URL. GitHub access by the operator does not establish Devin's repository authorization.
+This public repo contains only original synthetic starter material. In Devin, authorize access to `NatorOS/banking-modernization-demo`, start a session with docs/DEVIN_PROMPT.md, and retain the completed session URL. GitHub access by the operator does not establish Devin's repository authorization.
 
 ## AWS foundation
 
