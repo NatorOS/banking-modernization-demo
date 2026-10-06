@@ -4,7 +4,7 @@ Repository: https://github.com/mortenator/banking-modernization-demo
 
 I am preparing a banking modernization demonstration for a Cognition product partnerships interview. Build the modernization in this repo and open a PR. This is an integration and reconciliation case around a modern banking core, not a full core replacement.
 
-First read README.md, docs/ACCEPTANCE.md, docs/SETUP.md, legacy/batch.py, the tests and fixtures. Run the baseline before editing. Preserve the original legacy code, baseline tests and golden fixture. Explain your proposed state machine and ledger semantics, then implement the solution.
+First read README.md, docs/ACCEPTANCE.md, docs/SETUP.md, docs/COLUMN_SANDBOX.md, legacy/batch.py, the tests and fixtures. Run the baseline before editing. Preserve the original legacy code, baseline tests and golden fixture. Explain your proposed state machine and ledger semantics, then implement the solution.
 
 Build an event-driven payment integration with:
 
