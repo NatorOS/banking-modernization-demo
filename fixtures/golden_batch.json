@@ -1,0 +1,9 @@
+{
+  "currency": "USD",
+  "cash_cents": 81500,
+  "settled_cents": 18500,
+  "debit_cents": 18500,
+  "credit_cents": 18500,
+  "payment_count": 3,
+  "statuses": {"PAY-001": "SETTLED", "PAY-002": "SETTLED", "PAY-003": "SETTLED"}
+}

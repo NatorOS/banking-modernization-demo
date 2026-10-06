@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+.aws-sam/
+.venv/
+__pycache__/
+*.pyc
+data/
+output/
+*.zip
+*.pem
+*.key
+credentials*

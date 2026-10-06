@@ -1,0 +1,9 @@
+{
+  "opening_cash_cents": 100000,
+  "currency": "USD",
+  "payments": [
+    {"id": "PAY-001", "beneficiary": "Synthetic Supplier A", "amount_cents": 12500},
+    {"id": "PAY-002", "beneficiary": "Synthetic Supplier B", "amount_cents": 3500},
+    {"id": "PAY-003", "beneficiary": "Synthetic Supplier C", "amount_cents": 2500}
+  ]
+}
