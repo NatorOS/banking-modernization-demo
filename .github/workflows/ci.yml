@@ -12,3 +12,21 @@ jobs:
           python-version: '3.13'
       - run: python -m unittest discover -s tests -v
       - run: python -m scripts.baseline
+  modern:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -r requirements-dev.txt
+      - name: Behavioral suite on SQLite and DynamoDB (moto)
+        run: python -m unittest discover -s tests -v
+      - name: Five-minute demo, end to end (local SQLite)
+        run: python -m modern.demo run && python -m modern.demo edge-cases
+      - name: Lambda package and template sanity
+        run: python scripts/package_lambda.py output/lambda.zip && python -m json.tool infra/app.json > /dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reconciliation-report
+          path: output/reconciliation.json

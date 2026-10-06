@@ -8,7 +8,7 @@ This public repo contains only original synthetic starter material. In Devin, au
 
 The selected account is NatorOS, `784620264480`, in `us-east-1`. The older `serve-sandbox-admin` profile belongs to a different account and must not be used for this demo. A new `natoros` profile is intended for browser-based AWS login. No cloud resources should be described as created until deployment succeeds.
 
-Foundation deployment was verified `CREATE_COMPLETE` on October 6, 2026. Table: `banking-modernization-demo-foundation-DemoTable-1712SBKSQJZXT`. Artifact bucket: `banking-modernization-demo-foundation-artifacts-uqadfnsiynfs`. The modern application is not deployed yet. The operator's login is root; those credentials must remain local and must not be supplied to Devin. A separate scoped integration is still needed for direct Devin deployment.
+Foundation deployment was verified `CREATE_COMPLETE` on October 6, 2026. Table: `banking-modernization-demo-foundation-DemoTable-1712SBKSQJZXT`. Artifact bucket: `banking-modernization-demo-foundation-artifacts-uqadfnsiynfs`. The modern application is now deployed and exercised; see [AWS validation](AWS_VALIDATION.md). Deployment used the operator's local `natoros` login, which is root; credentials remained local and were not supplied to Devin. Lambda runs under its own restricted execution role. A separate scoped integration is still needed for direct Devin deployment.
 
 Authenticate locally, confirm that the resulting account is the intended sandbox, then run:
 

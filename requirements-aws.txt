@@ -1,0 +1,3 @@
+# Operator tools need aws login support; Lambda uses its own runtime SDK and execution role.
+boto3>=1.42,<2
+botocore[crt]>=1.42,<2
