@@ -1,0 +1,20 @@
+{
+  "description": "Expected modern outcomes. after_settlement reuses the unchanged legacy golden file; after_return values come from docs/ACCEPTANCE.md item 5.",
+  "stages": {
+    "after_settlement": {"golden_file": "fixtures/golden_batch.json"},
+    "after_return": {
+      "expected": {
+        "currency": "USD",
+        "cash_cents": 85000,
+        "settled_cents": 15000,
+        "net_settled_outflow_cents": 15000,
+        "debit_cents": 22000,
+        "credit_cents": 22000,
+        "reserved_cents": 0,
+        "available_cents": 85000,
+        "payment_count": 3,
+        "statuses": {"PAY-001": "SETTLED", "PAY-002": "RETURNED", "PAY-003": "SETTLED"}
+      }
+    }
+  }
+}

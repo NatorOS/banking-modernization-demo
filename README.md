@@ -29,3 +29,29 @@ See [acceptance criteria](docs/ACCEPTANCE.md) and [AWS setup](docs/SETUP.md). `i
 An AWS partner can use Devin to accelerate the integration, testing and reconciliation work around a bank's move to a modern core. The bank or implementation partner owns the transformation; a core provider owns its core; this demo addresses the surrounding engineering work. Potential partners are examples, not claimed relationships or verified integrations.
 
 The proposed modern path is HTTP API → Lambda → DynamoDB, with a payment-provider adapter and event replay. AWS consumption comes from requests, execution, durable state and logs. This repository makes no claim about Marketplace eligibility, contract credits or negotiated pricing.
+
+## Modern event-driven integration
+
+The modern path is added alongside the unchanged legacy batch:
+- a provider interface and deterministic simulator;
+- durable idempotency, signed settlement and return events, and duplicate and out-of-order
+  handling;
+- balanced immutable journal entries;
+- reconciliation against the golden results;
+- local SQLite mode and a deployable HTTP API → Lambda → DynamoDB mode.
+
+```bash
+python3 -m unittest discover -s tests -v   # legacy + modern suites (DynamoDB half needs requirements-dev.txt)
+python3 -m modern.demo run                 # scripted five-minute demo, writes output/reconciliation.json
+python3 -m modern.server                   # dashboard at http://127.0.0.1:8000/
+```
+
+- [docs/RUNBOOK.md](docs/RUNBOOK.md): five-minute demo, expected results, reset
+- [docs/DESIGN.md](docs/DESIGN.md): state machine, ledger semantics, idempotency, leases, reset generations
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): diagram and partner roles
+- [docs/CONSUMPTION.md](docs/CONSUMPTION.md): AWS services, usage drivers, measured vs estimated
+- [docs/SECURITY.md](docs/SECURITY.md): credentials, webhooks, network, egress, logging, real-bank gaps
+
+AWS deployment status: **pending**. The stack (`infra/app.json`) and the
+`scripts/deploy-app.sh` / `scripts/teardown-app.sh` scripts are ready for an operator with
+scoped access. The Column adapter is omitted until scoped access is available.

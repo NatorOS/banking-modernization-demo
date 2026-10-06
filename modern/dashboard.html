@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payment modernization demo (synthetic)</title>
+<style>
+  :root { --ink:#1b1f24; --muted:#5b6470; --line:#d9dee4; --ok:#1a7f37; --bad:#cf222e; --warn:#9a6700; --bg:#f6f8fa; }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; color: var(--ink); margin: 0; background: var(--bg); }
+  header { background: #fff; border-bottom: 1px solid var(--line); padding: 12px 20px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0; }
+  .tag { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #fff8c5; border: 1px solid #d4a72c; }
+  .tag.blue { background: #ddf4ff; border-color: #54aeff; }
+  main { padding: 16px 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+  section { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow: auto; }
+  section.wide { grid-column: 1 / -1; }
+  h2 { font-size: 14px; margin: 0 0 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ok { color: var(--ok); font-weight: 600; } .bad { color: var(--bad); font-weight: 600; } .warn { color: var(--warn); font-weight: 600; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
+  button:hover { background: #f3f4f6; } button.primary { background: #0969da; color: #fff; border-color: #0969da; }
+  input { font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; width: 160px; }
+  pre { background: var(--bg); padding: 8px; border-radius: 6px; max-height: 220px; overflow: auto; font-size: 12px; margin: 0; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .kpi { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+  .kpi b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .kpi span { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Batch → event-driven payments</h1>
+  <span class="tag">Synthetic data only · deterministic simulator</span>
+  <span class="tag blue" id="backend">Backend: __BACKEND_LABEL__</span>
+  <label>Namespace <input id="ns" value="demo-local" pattern="demo-[a-z0-9-]+"></label>
+  <span id="run"></span>
+</header>
+<main>
+  <section class="wide">
+    <h2>Demo actions</h2>
+    <div class="actions">
+      <button class="primary" data-act="reset">1 · Reset namespace</button>
+      <button data-act="submit-fixtures">2 · Submit fixtures</button>
+      <button data-act="submit-fixtures" data-label="retry">2b · Retry submissions</button>
+      <button data-act="settle-all">3 · Settle</button>
+      <button data-act="replay-settlement">4 · Replay settlement (same event ID)</button>
+      <button data-act="duplicate-settlement">4b · Duplicate settlement (new event ID)</button>
+      <button data-act="return-pay-002">5 · Return PAY-002 (R01)</button>
+      <button data-act="replay-return">6 · Replay return</button>
+      <button data-act="reconcile-pending">Reconcile pending</button>
+      <button data-act="refresh">Refresh</button>
+    </div>
+    <p id="last" style="margin:8px 0 0;color:var(--muted)">Choose an action. Reset affects only the selected <code>demo-*</code> namespace.</p>
+  </section>
+  <section>
+    <h2>Original batch outcome (legacy/batch.py)</h2>
+    <div id="legacy">Loading…</div>
+  </section>
+  <section>
+    <h2>Modern outcome · balances</h2>
+    <div id="balances"></div>
+  </section>
+  <section>
+    <h2>Payments</h2>
+    <div id="payments"></div>
+  </section>
+  <section>
+    <h2>Reconciliation</h2>
+    <div class="actions" style="margin-bottom:6px">
+      Expected stage:
+      <button data-stage="">invariants only</button>
+      <button data-stage="after_settlement">after settlement (golden)</button>
+      <button data-stage="after_return">after return</button>
+    </div>
+    <div id="recon"></div>
+  </section>
+  <section class="wide">
+    <h2>Immutable journal</h2>
+    <div id="journal"></div>
+  </section>
+  <section class="wide">
+    <h2>Event history (every delivery, including duplicates and rejections)</h2>
+    <div id="events"></div>
+  </section>
+  <section class="wide">
+    <h2>Last API response</h2>
+    <pre id="raw">—</pre>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const cents = (v) => v == null ? "" : (v / 100).toLocaleString("en-US", {style: "currency", currency: "USD"});
+let stage = "";
+const ns = () => $("ns").value.trim();
+
+async function api(method, path, body) {
+  const res = await fetch(path, {method, headers: {"content-type": "application/json"}, body: body ? JSON.stringify(body) : undefined});
+  const data = await res.json().catch(() => ({}));
+  return {status: res.status, data};
+}
+
+function table(rows, cols) {
+  if (!rows.length) return "<p style='color:var(--muted)'>None yet.</p>";
+  return "<table><thead><tr>" + cols.map(c => `<th>${esc(c[0])}</th>`).join("") + "</tr></thead><tbody>" +
+    rows.map(r => "<tr>" + cols.map(c => { const v = c[1](r); return `<td class="${c[2]||""}">${v}</td>`; }).join("") + "</tr>").join("") +
+    "</tbody></table>";
+}
+const outcomeClass = (o) => o === "APPLIED" ? "ok" : (o === "REJECTED" ? "bad" : "warn");
+
+async function loadLegacy() {
+  const {data} = await api("GET", "/api/legacy/baseline");
+  if (!data.result) { $("legacy").textContent = "Unavailable"; return; }
+  const r = data.result;
+  $("legacy").innerHTML = `<div class="kpis">
+    <div class="kpi"><span>Cash</span><b>${cents(r.cash_cents)}</b></div>
+    <div class="kpi"><span>Settled</span><b>${cents(r.settled_cents)}</b></div>
+    <div class="kpi"><span>Debits / credits</span><b>${cents(r.debit_cents)}</b></div>
+    <div class="kpi"><span>Golden match</span><b class="${data.matches_golden ? "ok" : "bad"}">${data.matches_golden ? "YES" : "NO"}</b></div></div>
+    <p>${Object.entries(r.statuses).map(([k, v]) => `${esc(k)}: ${esc(v)}`).join(" · ")}</p>
+    <p style="color:var(--muted)">One end-of-day transaction: no provider, no async events, no return workflow.</p>`;
+}
+
+async function refresh() {
+  const {status, data} = await api("GET", `/api/namespaces/${encodeURIComponent(ns())}/state`);
+  if (status !== 200) {
+    $("balances").innerHTML = `<p class="warn">${esc(data.error?.message || "No state")} — press Reset.</p>`;
+    ["payments","journal","events","recon"].forEach(id => $(id).innerHTML = "");
+    $("run").textContent = ""; return;
+  }
+  const s = data.snapshot, a = data.reconciliation.actual;
+  $("run").textContent = `run ${s.run} · provider ${data.provider.name} (${data.provider.mode}) · store ${data.store}`;
+  $("balances").innerHTML = `<div class="kpis">
+    <div class="kpi"><span>Opening cash</span><b>${cents(a.opening_cash_cents)}</b></div>
+    <div class="kpi"><span>Cash (posted)</span><b>${cents(a.cash_cents)}</b></div>
+    <div class="kpi"><span>Reserved</span><b>${cents(a.reserved_cents)}</b></div>
+    <div class="kpi"><span>Available</span><b>${cents(a.available_cents)}</b></div>
+    <div class="kpi"><span>Debits</span><b>${cents(a.debit_cents)}</b></div>
+    <div class="kpi"><span>Credits</span><b>${cents(a.credit_cents)}</b></div>
+    <div class="kpi"><span>Net settled outflow</span><b>${cents(a.net_settled_outflow_cents)}</b></div>
+    <div class="kpi"><span>Returned</span><b>${cents(a.returned_cents)}</b></div></div>`;
+  $("payments").innerHTML = table(s.payments, [
+    ["Payment", p => esc(p.payment_id)], ["Amount", p => cents(p.amount_cents), "num"],
+    ["Status", p => `<b>${esc(p.status)}</b>${p.pending_return ? " <span class='warn'>(return parked)</span>" : ""}`],
+    ["Provider ref", p => `<code>${esc(p.provider_payment_id || "—")}</code>`],
+    ["Last submission", p => esc(p.last_submission_outcome || "")]]);
+  $("journal").innerHTML = table(s.journal, [
+    ["Entry", j => `<code>${esc(j.entry_id)}</code>`], ["Effect", j => esc(j.effect)], ["Side", j => esc(j.side)],
+    ["Account", j => esc(j.account)], ["Amount", j => cents(j.amount_cents), "num"], ["Event", j => `<code>${esc(j.event_id)}</code>`],
+    ["Posted", j => esc(j.posted_at)]]);
+  $("events").innerHTML = table(s.deliveries.slice().reverse(), [
+    ["Received", d => esc(d.received_at)], ["Event ID", d => `<code>${esc(d.event_id || "—")}</code>`], ["Type", d => esc(d.type || "")],
+    ["Payment", d => esc(d.payment_id || "")], ["Outcome", d => `<span class="${outcomeClass(d.outcome)}">${esc(d.outcome)}</span>`],
+    ["Reason", d => esc(d.reason)]]);
+  await loadRecon();
+}
+
+async function loadRecon() {
+  const q = stage ? `?stage=${stage}` : "";
+  const {data} = await api("GET", `/api/namespaces/${encodeURIComponent(ns())}/reconciliation${q}`);
+  if (!data.invariants) { $("recon").innerHTML = ""; return; }
+  const failed = data.invariants.concat(data.provider_reconciliation).filter(c => !c.ok);
+  $("recon").innerHTML = `<p><b class="${data.status === "PASS" ? "ok" : "bad"}">${esc(data.status)}</b> · stage: ${esc(data.stage || "invariants only")} ·
+      unexplained differences: <b>${data.unexplained_differences}</b> · invariant checks passed: ${data.invariants.filter(c => c.ok).length}/${data.invariants.length}</p>` +
+    (data.differences.length ? "<h3>Expected vs actual differences</h3>" + table(data.differences, [["Field", d => esc(d.field)], ["Expected", d => esc(JSON.stringify(d.expected))], ["Actual", d => esc(JSON.stringify(d.actual))]]) : "") +
+    (failed.length ? "<h3>Failed checks</h3>" + table(failed, [["Check", c => esc(c.check)], ["Expected", c => esc(JSON.stringify(c.expected))], ["Actual", c => esc(JSON.stringify(c.actual))]]) : "") +
+    (data.explained_exceptions.length ? "<h3>Explained exceptions</h3>" + table(data.explained_exceptions, [["Item", e => esc(e.payment_id || e.event_id)], ["Explanation", e => esc(e.explanation)]]) : "");
+}
+
+async function act(name, label) {
+  const base = `/api/namespaces/${encodeURIComponent(ns())}`;
+  if (name === "refresh") return refresh();
+  const path = name === "reset" ? `${base}/reset` : name === "reconcile-pending" ? `${base}/reconcile-pending` : `${base}/demo/${name}`;
+  const {status, data} = await api("POST", path, {});
+  $("raw").textContent = JSON.stringify(data, null, 2);
+  const results = data.results || [];
+  const summary = results.map(r => r.outcome || r.error?.code || "").filter(Boolean).join(", ");
+  $("last").textContent = `${label || name}: HTTP ${status}${summary ? " · " + summary : ""}`;
+  if (name === "return-pay-002" || name === "replay-return") stage = "after_return";
+  if (name === "settle-all" || name.includes("settlement")) stage = "after_settlement";
+  if (name === "reset") stage = "";
+  await refresh();
+}
+
+document.querySelectorAll("button[data-act]").forEach(b => b.addEventListener("click", () => act(b.dataset.act, b.dataset.label)));
+document.querySelectorAll("button[data-stage]").forEach(b => b.addEventListener("click", () => { stage = b.dataset.stage; loadRecon(); }));
+$("ns").addEventListener("change", refresh);
+loadLegacy(); refresh();
+</script>
+</body>
+</html>
