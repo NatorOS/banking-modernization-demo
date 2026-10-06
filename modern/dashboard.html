@@ -175,22 +175,32 @@ async function loadRecon() {
 
 async function act(name, label) {
   const base = `/api/namespaces/${encodeURIComponent(ns())}`;
-  if (name === "refresh") return refresh();
+  if (name === "refresh") { clearLastResponse(); return refresh(); }
   const path = name === "reset" ? `${base}/reset` : name === "reconcile-pending" ? `${base}/reconcile-pending` : `${base}/demo/${name}`;
   const {status, data} = await api("POST", path, {});
   $("raw").textContent = JSON.stringify(data, null, 2);
   const results = data.results || [];
-  const summary = results.map(r => r.outcome || r.error?.code || "").filter(Boolean).join(", ");
+  const summary = results.map(r => r.outcome || r.error?.code || "").filter(Boolean).join(", ")
+    || data.message || data.error?.message || "";
   $("last").textContent = `${label || name}: HTTP ${status}${summary ? " · " + summary : ""}`;
-  if (name === "return-pay-002" || name === "replay-return") stage = "after_return";
-  if (name === "settle-all" || name.includes("settlement")) stage = "after_settlement";
-  if (name === "reset") stage = "";
+  // Only a successful action moves the expected stage; a failed one keeps the current comparison.
+  const succeeded = status === 200 && results.every(r => !r.error && (r.http_status ?? 200) < 400);
+  if (succeeded) {
+    if (name === "return-pay-002" || name === "replay-return") stage = "after_return";
+    if ((name === "settle-all" && results.length) || name.includes("settlement")) stage = "after_settlement";
+    if (name === "reset") stage = "";
+  }
   await refresh();
+}
+
+function clearLastResponse() {
+  $("raw").textContent = "—";
+  $("last").textContent = "";
 }
 
 document.querySelectorAll("button[data-act]").forEach(b => b.addEventListener("click", () => act(b.dataset.act, b.dataset.label)));
 document.querySelectorAll("button[data-stage]").forEach(b => b.addEventListener("click", () => { stage = b.dataset.stage; loadRecon(); }));
-$("ns").addEventListener("change", refresh);
+$("ns").addEventListener("change", () => { clearLastResponse(); stage = ""; refresh(); });
 loadLegacy(); refresh();
 </script>
 </body>

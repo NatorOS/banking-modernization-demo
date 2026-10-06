@@ -611,6 +611,22 @@ class BehaviorSuite:
         status, body = post("/payments", self.request("PAY-009"), {"Idempotency-Key": "http-key-0009"})
         self.assertEqual((status, body["payment"]["status"]), (201, "SUBMITTED"))
 
+    def test_settle_all_explains_when_there_is_nothing_to_settle(self):
+        def settle_all():
+            status, _, raw, _ = self.app.handle("POST", f"/api/namespaces/{NS}/demo/settle-all", {}, b"{}")
+            return status, json.loads(raw)
+
+        status, body = settle_all()
+        self.assertEqual((status, body["results"]), (200, []))
+        self.assertIn("nothing to settle", body["message"])
+        self.submit_fixtures()
+        self.assertEqual([r["outcome"] for r in settle_all()[1]["results"]], ["APPLIED"] * 3)
+        before = self.service.snapshot(NS)
+        status, body = settle_all()
+        self.assertEqual((status, body["results"]), (200, []))
+        self.assertIn("nothing to settle", body["message"])
+        self.assertEqual(self.service.snapshot(NS), before)
+
     def test_http_router_rejects_malformed_bodies_without_changing_state(self):
         self.submit("PAY-001")
         self.settle("PAY-001")

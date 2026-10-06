@@ -214,6 +214,9 @@ class App:
                 if p["status"] in (PENDING, SUBMITTED) and \
                         self.provider.lookup(ns, p["provider_idempotency_key"]) is not None:
                     results.append(self._provider_event(ns, p["payment_id"], "settled"))
+            if not results:
+                return 200, {"action": action, "namespace": ns, "results": [],
+                             "message": "nothing to settle: no submitted payments awaiting settlement in the active run"}
         elif action == "replay-settlement":
             results.append(self._redeliver_for(ns, self._payment_id(data, "PAY-001"), "settled"))
         elif action == "duplicate-settlement":
