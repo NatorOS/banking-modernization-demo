@@ -278,7 +278,7 @@ class PaymentService:
             except (ConditionFailed, Contention):
                 self._backoff(attempt)
                 continue
-            purged = self.store.delete_prefix(pk, "RUN#", where=lambda item: self.item_run(item) < run)
+            purged = self.store.delete_prefix(pk, "RUN#", where=lambda item, run=run: self.item_run(item) < run)
             return {"namespace": namespace, "run": run, "previous_run": meta["run"] if meta else None,
                     "purged_previous_run_items": purged}
         raise ServiceBusy("reset contended; retry")
@@ -318,7 +318,7 @@ class PaymentService:
                 self._backoff(attempt)
                 continue
 
-            def fenced(item):
+            def fenced(item, fence=fence):
                 run = self.item_run(item)
                 return run is None or run <= fence
             deleted = self.store.delete_prefix(pk, "RUN#", where=fenced) + \
