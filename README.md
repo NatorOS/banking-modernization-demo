@@ -52,6 +52,7 @@ python3 -m modern.server                   # dashboard at http://127.0.0.1:8000/
 - [docs/CONSUMPTION.md](docs/CONSUMPTION.md): AWS services, usage drivers, measured vs estimated
 - [docs/SECURITY.md](docs/SECURITY.md): credentials, webhooks, network, egress, logging, real-bank gaps
 
-AWS deployment status: **pending**. The stack (`infra/app.json`) and the
-`scripts/deploy-app.sh` / `scripts/teardown-app.sh` scripts are ready for an operator with
-scoped access. The Column adapter is omitted until scoped access is available.
+AWS deployment status: **deployed and exercised** in account `784620264480`, `us-east-1`.
+The signed API demo and edge cases pass; 36 shared behavioral tests pass on real DynamoDB,
+with 15 additional concurrency runs. See [AWS validation](docs/AWS_VALIDATION.md) for evidence,
+repeatable checks, and the dashboard command. The Column adapter remains optional and omitted.

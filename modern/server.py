@@ -13,11 +13,13 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .api import MAX_BODY_BYTES
+from .service import validate_namespace
 
 DASHBOARD = Path(__file__).with_name("dashboard.html")
 
 
-def make_handler(backend, label):
+def make_handler(backend, label, namespace="demo-local"):
+    validate_namespace(namespace)
     class Handler(BaseHTTPRequestHandler):
         server_version = "banking-demo"
 
@@ -32,7 +34,8 @@ def make_handler(backend, label):
         def _dispatch(self, method):
             url = urlsplit(self.path)
             if method == "GET" and url.path in ("/", "/index.html"):
-                html = DASHBOARD.read_text().replace("__BACKEND_LABEL__", label).encode()
+                html = DASHBOARD.read_text().replace("__BACKEND_LABEL__", label).replace(
+                    'value="demo-local"', f'value="{namespace}"').encode()
                 return self._send(200, {"content-type": "text/html; charset=utf-8", "cache-control": "no-store"}, html)
             if not url.path.startswith("/api/"):
                 return self._send(404, {"content-type": "text/plain"}, b"not found")
@@ -64,6 +67,7 @@ def main(argv=None):
     parser.add_argument("--remote")
     parser.add_argument("--profile")
     parser.add_argument("--region", default="us-east-1")
+    parser.add_argument("--namespace", help="initial dashboard namespace (AWS default: demo-aws)")
     args = parser.parse_args(argv)
     if args.remote:
         from .aws_client import SignedApiClient
@@ -78,7 +82,8 @@ def main(argv=None):
     def backend(method, path, body, headers, query):
         return client.raw(method, path, body, headers, query)
 
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(backend, label))
+    namespace = args.namespace or ("demo-aws" if args.remote else "demo-local")
+    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(backend, label, namespace))
     print(f"Dashboard: http://127.0.0.1:{args.port}/  backend: {label}")
     try:
         server.serve_forever()

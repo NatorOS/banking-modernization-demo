@@ -3,6 +3,7 @@
 !.env.example
 .aws-sam/
 .venv/
+.venv-aws/
 __pycache__/
 *.pyc
 data/

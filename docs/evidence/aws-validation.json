@@ -1,0 +1,107 @@
+{
+  "deployment": {
+    "account": "784620264480",
+    "region": "us-east-1",
+    "api_url": "https://15ggin9fcd.execute-api.us-east-1.amazonaws.com",
+    "function": "banking-modernization-demo-app-api",
+    "runtime": "python3.13",
+    "last_update": "Successful",
+    "code_sha256": "ptq5xx5HpuWddrhM4tqWPQGWaG4XuA/0jMTuiyXI9RI=",
+    "package_matches_deployed": true
+  },
+  "real_dynamodb": {
+    "tests_run": 36,
+    "success": true,
+    "moto": false,
+    "request_lock": false,
+    "tested_at": "2026-10-06T23:29:18.853002+00:00"
+  },
+  "concurrency_repetitions": {
+    "tests_run": 15,
+    "repeat": 5,
+    "success": true
+  },
+  "api_verification": {
+    "tested_at": "2026-10-06T23:31:05.876112+00:00",
+    "account": "784620264480",
+    "region": "us-east-1",
+    "api_url": "https://15ggin9fcd.execute-api.us-east-1.amazonaws.com",
+    "namespace": "demo-api-811427d91d5c45f09708",
+    "checks": {
+      "unsigned_request": 403,
+      "signed_health": {
+        "ok": true,
+        "environment": "aws",
+        "store": "dynamodb",
+        "provider": {
+          "name": "simulator",
+          "mode": "deterministic-simulator"
+        },
+        "data_classification": "synthetic"
+      },
+      "same_key": {
+        "responses": [
+          201,
+          200,
+          200,
+          200,
+          200,
+          200,
+          202,
+          200
+        ],
+        "payment_count": 1,
+        "reserved_cents": 400,
+        "reconciliation": "PASS"
+      },
+      "competing_spend": {
+        "responses": [
+          422,
+          201,
+          422,
+          422,
+          422,
+          422,
+          201,
+          422
+        ],
+        "payment_count": 2,
+        "balance": {
+          "available_cents": 200,
+          "cash_cents": 1000,
+          "opening_cash_cents": 1000,
+          "reserved_cents": 800,
+          "currency": "USD"
+        },
+        "reconciliation": "PASS"
+      }
+    },
+    "success": true,
+    "cleanup_http_status": 200,
+    "cleanup": "test namespace purged; generation tombstone preserved"
+  },
+  "reconciliation": {
+    "status": "PASS",
+    "actual": {
+      "currency": "USD",
+      "cash_cents": 85000,
+      "settled_cents": 15000,
+      "debit_cents": 22000,
+      "credit_cents": 22000,
+      "payment_count": 3,
+      "statuses": {
+        "PAY-001": "SETTLED",
+        "PAY-002": "RETURNED",
+        "PAY-003": "SETTLED"
+      },
+      "net_settled_outflow_cents": 15000,
+      "returned_cents": 3500,
+      "reserved_cents": 0,
+      "available_cents": 85000,
+      "opening_cash_cents": 100000
+    },
+    "unexplained_differences": 0,
+    "passed_invariants": 14,
+    "total_invariants": 14
+  }
+}

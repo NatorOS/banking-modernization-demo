@@ -83,11 +83,14 @@ A reset starts a fresh run generation in that one `demo-*` namespace. Namespaces
 To discard all local state: `rm -rf data/ output/`. Those directories are git-ignored and hold
 only synthetic data and a locally generated simulator signing key.
 
-## AWS mode (pending: not deployed from this session)
+## AWS mode (deployed and exercised)
 
 The operator runs these with their own scoped profile:
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-aws.txt
 bash scripts/deploy-app.sh <profile> 784620264480 us-east-1
 python3 -m modern.demo run --remote <ApiUrl> --profile <profile>
 python3 -m modern.server --remote <ApiUrl> --profile <profile>    # dashboard via local SigV4 proxy
@@ -97,3 +100,8 @@ bash scripts/teardown-app.sh <profile> 784620264480 us-east-1 --purge-data   # f
 The deploy script refuses to run if the profile's account or the region does not match. It
 reads the table and bucket names from the foundation stack's outputs, and prints `403` for an
 unsigned request as proof that IAM auth is enforced.
+
+The current endpoint is `https://15ggin9fcd.execute-api.us-east-1.amazonaws.com`.
+The AWS dashboard defaults to `demo-aws`; use `--namespace` to select another synthetic run.
+See [AWS_VALIDATION.md](AWS_VALIDATION.md) for the verified results and commands to run the
+shared suite against real DynamoDB without moto, plus concurrency through API Gateway/Lambda.

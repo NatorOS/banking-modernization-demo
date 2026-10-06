@@ -39,7 +39,9 @@ The dashboard state view also reports the running process's own counters (`proce
   `history` list.
 - **Idle cost drivers:** the Secrets Manager secret and any stored log and table data. There is
   no idle compute.
-- **AWS-measured consumption** is pending deployment. After deploying, read it from CloudWatch
-  metrics (`AWS/ApiGateway Count`, `AWS/Lambda Invocations/Duration`,
-  `AWS/DynamoDB ConsumedRead/WriteCapacityUnits`) and Cost Explorer filtered by the
-  `Project=banking-modernization-demo` tag.
+- **AWS observation:** CloudWatch reported 47 invocations for
+  `banking-modernization-demo-app-api` across the preceding 30-minute verification window.
+  Metrics can arrive late, and that window included testing and dashboard requests; this is
+  not a per-demo count or a billed-cost measurement. Retrieve current service metrics
+  (`AWS/ApiGateway Count`, `AWS/Lambda Invocations/Duration`,
+  `AWS/DynamoDB ConsumedRead/WriteCapacityUnits`) and billed costs separately.

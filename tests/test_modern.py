@@ -32,7 +32,8 @@ except ImportError:  # the original CI job runs without third-party packages
 ROOT = Path(__file__).resolve().parents[1]
 GOLDEN = json.loads((ROOT / "fixtures" / "golden_batch.json").read_text())
 KEY = "k" * 64
-NS = "demo-test"
+NS = os.environ.get("MODERN_TEST_NAMESPACE", "demo-test")
+OTHER_NS = NS + "-other"
 
 
 class Clock:
@@ -220,6 +221,28 @@ class BehaviorSuite:
         self.assertEqual(sorted(outcomes), ["nsf"] * 6 + ["ok"] * 2)
         b = self.assert_invariants()
         self.assertEqual((b["reserved_cents"], b["available_cents"]), (800, 200))
+
+    def test_same_key_claim_is_reread_before_classifying_transaction_failure(self):
+        for reported_index in (2, 3):
+            with self.subTest(reported_index=reported_index):
+                self.service.reset(NS)
+                armed = [True]
+
+                def competing_claim(ops, index=reported_index, armed=armed):
+                    if armed[0] and any(isinstance(op, Put) and "#IDEM#" in op.sk for op in ops):
+                        armed[0] = False
+                        self.submit("PAY-001")
+                        raise ConditionFailed(index, "competing same-key transaction committed")
+
+                self.store.before_transact.append(competing_claim)
+                try:
+                    replay = self.submit("PAY-001")
+                finally:
+                    self.store.before_transact.remove(competing_claim)
+                self.assertTrue(replay["replayed"])
+                self.assertEqual(replay["payment"]["status"], "SUBMITTED")
+                self.assertEqual(len(self.service.snapshot(NS)["payments"]), 1)
+                self.assertEqual(self.assert_invariants()["reserved_cents"], 12500)
 
     # Provider events ---------------------------------------------------------------------------
 
@@ -434,9 +457,9 @@ class BehaviorSuite:
     # Reset isolation -------------------------------------------------------------------------
 
     def test_reset_isolates_old_events_and_in_flight_responses(self):
-        self.service.reset("demo-other")
-        self.service.submit_payment("demo-other", "other-ns-key-1", self.request("PAY-001"))
-        other_before = self.service.snapshot("demo-other")
+        self.service.reset(OTHER_NS)
+        self.service.submit_payment(OTHER_NS, "other-ns-key-1", self.request("PAY-001"))
+        other_before = self.service.snapshot(OTHER_NS)
         self.submit("PAY-001")
         old_event = self.provider.settlement_event(NS, self.payment("PAY-001")["provider_idempotency_key"])
 
@@ -458,7 +481,7 @@ class BehaviorSuite:
         self.assertIn("stale_run", str(ctx.exception))
         self.assertEqual(self.payment("PAY-001")["status"], "SUBMITTED")
         self.assertEqual(self.balance()["cash_cents"], 100000)
-        self.assertEqual(self.service.snapshot("demo-other"), other_before)
+        self.assertEqual(self.service.snapshot(OTHER_NS), other_before)
         self.assert_invariants()
 
     def run_numbers(self, ns=NS):

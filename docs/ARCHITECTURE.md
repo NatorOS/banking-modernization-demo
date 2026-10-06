@@ -9,7 +9,7 @@ Browser ──▶ modern.server (127.0.0.1) ──▶ App router ──▶ Payme
                                         SimulatedProvider ───────┘
 ```
 
-## AWS mode (deployable; deployment pending)
+## AWS mode (deployed and exercised)
 
 ```mermaid
 flowchart LR

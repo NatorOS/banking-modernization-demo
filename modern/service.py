@@ -410,6 +410,13 @@ class PaymentService:
                 self.store.transact(ops)
             except ConditionFailed as exc:
                 if exc.index in (0, 1):  # reset raced us, or a concurrent request claimed the key
+                    self._backoff(attempt)
+                    continue
+                # Real DynamoDB can report the payment/balance condition first when a
+                # competing transaction claimed this same key. Re-read the durable claim
+                # before interpreting that cancellation as a business conflict or NSF.
+                if self.store.get(pk, prefix + "IDEM#" + idempotency_key) is not None:
+                    self._backoff(attempt)
                     continue
                 if exc.index == 2:
                     raise PaymentConflict("payment_id already exists under a different Idempotency-Key",
