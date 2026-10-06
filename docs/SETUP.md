@@ -8,6 +8,8 @@ This public repo contains only original synthetic starter material. In Devin, au
 
 The selected account is NatorOS, `784620264480`, in `us-east-1`. The older `serve-sandbox-admin` profile belongs to a different account and must not be used for this demo. A new `natoros` profile is intended for browser-based AWS login. No cloud resources should be described as created until deployment succeeds.
 
+Foundation deployment was verified `CREATE_COMPLETE` on October 6, 2026. Table: `banking-modernization-demo-foundation-DemoTable-1712SBKSQJZXT`. Artifact bucket: `banking-modernization-demo-foundation-artifacts-uqadfnsiynfs`. The modern application is not deployed yet. The operator's login is root; those credentials must remain local and must not be supplied to Devin. A separate scoped integration is still needed for direct Devin deployment.
+
 Authenticate locally, confirm that the resulting account is the intended sandbox, then run:
 
 ```sh
@@ -27,6 +29,8 @@ Use pay-per-request/serverless resources, explicit log retention and project tag
 ## Optional Column sandbox
 
 The mandatory provider simulator needs no account. A real Column sandbox requires sandbox access and credentials, verified current API/webhook specifications, and secure secret provisioning. Keep it optional. Do not paste keys into Devin chat, commit them, or run real-money operations.
+
+To store a dashboard-issued sandbox API key securely in the selected account, run `python3 scripts/store-column-key.py` in a local terminal. Input is hidden; the script accepts only a sandbox-prefixed key, checks the AWS account, and creates a project-tagged Secrets Manager secret. It does not overwrite an existing secret. Store format is JSON with an `api_key` field. The script outputs only the secret ARN. This does not automatically grant Devin access or verify Column authentication. Secrets Manager has its own charges. Delete this project secret during cleanup when it is no longer needed.
 
 ## Cleanup
 

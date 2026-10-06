@@ -2,6 +2,8 @@
 
 Repository: https://github.com/mortenator/banking-modernization-demo
 
+AWS target: NatorOS account `784620264480`, `us-east-1`. The foundation stack is deployed. DynamoDB table: `banking-modernization-demo-foundation-DemoTable-1712SBKSQJZXT`; private artifact bucket: `banking-modernization-demo-foundation-artifacts-uqadfnsiynfs`. No modern application is deployed yet. A Column sandbox exists, but secret access and provider authentication are pending. Resource names are configuration, not credentials; do not assume this grants AWS or Column access.
+
 I am preparing a banking modernization demonstration for a Cognition product partnerships interview. Build the modernization in this repo and open a PR. This is an integration and reconciliation case around a modern banking core, not a full core replacement.
 
 First read README.md, docs/ACCEPTANCE.md, docs/SETUP.md, docs/COLUMN_SANDBOX.md, legacy/batch.py, the tests and fixtures. Run the baseline before editing. Preserve the original legacy code, baseline tests and golden fixture. Explain your proposed state machine and ledger semantics, then implement the solution.
