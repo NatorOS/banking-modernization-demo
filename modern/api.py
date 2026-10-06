@@ -1,5 +1,6 @@
 """HTTP routing shared by the local server and the AWS Lambda handler."""
 import json
+import logging
 import re
 import tempfile
 import time
@@ -7,7 +8,11 @@ from pathlib import Path
 from urllib.parse import parse_qs
 
 from .reconciliation import ROOT, STAGES, build_report
-from .service import PENDING, SUBMITTED, ServiceError, ValidationError, validate_namespace
+from .service import (EVENT_ID_RE, PAYMENT_ID_RE, PENDING, RETURN_CODES, SUBMITTED, ServiceError,
+                      ValidationError, validate_namespace)
+
+log = logging.getLogger(__name__)
+MAX_VARIANT = 1000
 
 MAX_BODY_BYTES = 16 * 1024
 FIXTURE = ROOT / "fixtures" / "payments.json"
@@ -80,6 +85,9 @@ class App:
             status, payload = getattr(self, "_" + route)(params, headers, body or b"", parse_qs(query or ""))
         except ServiceError as exc:
             status, payload = exc.status, _error(exc)
+        except Exception:
+            log.exception("unhandled error in route %s", route)
+            status, payload = 500, {"error": {"code": "internal_error", "message": "unexpected server error"}}
         return self._json(status, payload, route)
 
     @staticmethod
@@ -92,9 +100,28 @@ class App:
         if not body:
             return {}
         try:
-            return json.loads(body)
+            data = json.loads(body)
         except (ValueError, UnicodeDecodeError):
             raise ValidationError("request body must be valid JSON") from None
+        if not isinstance(data, dict):
+            raise ValidationError("request body must be a JSON object")
+        return data
+
+    @staticmethod
+    def _variant(data, default):
+        value = data.get("variant", default)
+        if type(value) is not int or not 0 <= value <= MAX_VARIANT:
+            raise ValidationError(f"variant must be an integer between 0 and {MAX_VARIANT}",
+                                  details={"field": "variant"})
+        return value
+
+    @staticmethod
+    def _payment_id(data, default=None):
+        value = data.get("payment_id", default)
+        if not isinstance(value, str) or not PAYMENT_ID_RE.match(value):
+            raise ValidationError("payment_id must be 3-40 chars of A-Z, 0-9 and '-'",
+                                  code="invalid_payment_reference", details={"field": "payment_id"})
+        return value
 
     # Routes --------------------------------------------------------------------------------
 
@@ -188,22 +215,28 @@ class App:
                         self.provider.lookup(ns, p["provider_idempotency_key"]) is not None:
                     results.append(self._provider_event(ns, p["payment_id"], "settled"))
         elif action == "replay-settlement":
-            results.append(self._redeliver_for(ns, data.get("payment_id", "PAY-001"), "settled"))
+            results.append(self._redeliver_for(ns, self._payment_id(data, "PAY-001"), "settled"))
         elif action == "duplicate-settlement":
-            results.append(self._provider_event(ns, data.get("payment_id", "PAY-001"), "settled",
-                                                variant=int(data.get("variant", 2))))
+            results.append(self._provider_event(ns, self._payment_id(data, "PAY-001"), "settled",
+                                                variant=self._variant(data, 2)))
         elif action == "return-pay-002":
             results.append(self._provider_event(ns, "PAY-002", "returned", return_code="R01"))
         elif action == "replay-return":
-            results.append(self._redeliver_for(ns, data.get("payment_id", "PAY-002"), "returned"))
+            results.append(self._redeliver_for(ns, self._payment_id(data, "PAY-002"), "returned"))
         elif action == "provider-event":
             kind = data.get("type")
             if kind not in ("settled", "returned"):
                 raise ValidationError("type must be settled or returned")
-            results.append(self._provider_event(ns, data.get("payment_id"), kind, int(data.get("variant", 0)),
-                                                data.get("return_code", "R01")))
+            return_code = data.get("return_code", "R01")
+            if return_code not in RETURN_CODES:
+                raise ValidationError("return_code must be a known return code", details={"field": "return_code"})
+            results.append(self._provider_event(ns, self._payment_id(data), kind, self._variant(data, 0),
+                                                return_code))
         elif action == "redeliver":
-            event = self.provider.emitted_event(ns, str(data.get("event_id")))
+            event_id = data.get("event_id")
+            if not isinstance(event_id, str) or not EVENT_ID_RE.match(event_id):
+                raise ValidationError("event_id must be a provider event id", details={"field": "event_id"})
+            event = self.provider.emitted_event(ns, event_id)
             if event is None:
                 raise ValidationError("simulator never emitted that event_id")
             results.append(self._deliver(ns, event))

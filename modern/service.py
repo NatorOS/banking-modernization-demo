@@ -99,8 +99,12 @@ def canonical(obj):
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
 
+def sha256(text):
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
 def digest(obj):
-    return hashlib.sha256(canonical(obj).encode()).hexdigest()
+    return sha256(canonical(obj))
 
 
 def iso(dt):
@@ -218,12 +222,28 @@ class PaymentService:
     def provider_key(self, namespace, run, payment_id):
         return f"{namespace}:{run}:{payment_id}"
 
+    @staticmethod
+    def item_run(item):
+        """Run generation an item belongs to, or None if it is not generation-scoped."""
+        sk = item["sk"]
+        if sk.startswith("RUN#"):
+            return int(sk.split("#", 2)[1])
+        if sk.startswith("SIM#PAYMENT#"):
+            ref = sk[len("SIM#PAYMENT#"):]
+        elif sk.startswith("SIM#EVENT#"):
+            payload = item.get("payload")
+            ref = payload.get("client_reference") if isinstance(payload, dict) else None
+        else:
+            return None
+        parts = ref.split(":") if isinstance(ref, str) else []
+        return int(parts[1]) if len(parts) == 3 and parts[1].isdigit() else None
+
     # Namespace lifecycle ---------------------------------------------------------------------
 
     def meta(self, namespace):
         validate_namespace(namespace)
         meta = self.store.get(self.pk(namespace), "META")
-        if meta is None:
+        if meta is None or meta.get("purged"):
             raise NotFound("namespace has not been initialised; reset it first", code="unknown_namespace")
         return meta
 
@@ -236,8 +256,9 @@ class PaymentService:
 
         The new run gets new keys (``RUN#n#``) and new provider idempotency keys, and every
         write pins the run, so delayed events or in-flight submission responses from older
-        runs can no longer change state. Previous-run subledger items are then purged; the
-        simulator's own (provider-side) history is kept. Other namespaces are never touched.
+        runs can no longer change state. Items of strictly older runs are then purged, so an
+        overlapping reset that already started a newer run is never deleted; the simulator's
+        own (provider-side) history is kept. Other namespaces are never touched.
         """
         validate_namespace(namespace)
         validate_amount(opening_cash_cents)
@@ -257,14 +278,15 @@ class PaymentService:
             except (ConditionFailed, Contention):
                 self._backoff(attempt)
                 continue
-            purged = self.store.delete_prefix(pk, "RUN#", keep_prefix=self.prefix(run))
+            purged = self.store.delete_prefix(pk, "RUN#", where=lambda item: self.item_run(item) < run)
             return {"namespace": namespace, "run": run, "previous_run": meta["run"] if meta else None,
                     "purged_previous_run_items": purged}
         raise ServiceBusy("reset contended; retry")
 
     def ensure_namespace(self, namespace, opening_cash_cents=100000, currency="USD"):
         validate_namespace(namespace)
-        if self.store.get(self.pk(namespace), "META") is None:
+        meta = self.store.get(self.pk(namespace), "META")
+        if meta is None or meta.get("purged"):
             try:
                 return self.reset(namespace, opening_cash_cents, currency)
             except ServiceBusy:
@@ -272,11 +294,37 @@ class PaymentService:
         return {"namespace": namespace, "run": self.meta(namespace)["run"]}
 
     def purge(self, namespace):
-        """Delete every item in this synthetic namespace partition, including simulator history."""
+        """Delete this synthetic namespace's data, including simulator history.
+
+        META becomes a tombstone that keeps the generation counter, fenced one past the last
+        run: writes pinned to an older run fail their run check, and the next reset starts a
+        generation whose provider references were never issued, so captured events stay stale.
+        Only items up to the fence are deleted, so a reset racing the purge keeps its new run.
+        """
         validate_namespace(namespace)
-        return {"namespace": namespace, "deleted_items": self.store.delete_prefix(self.pk(namespace), "RUN#")
-                + self.store.delete_prefix(self.pk(namespace), "SIM#")
-                + self.store.delete_prefix(self.pk(namespace), "META")}
+        pk = self.pk(namespace)
+        for attempt in range(self.MAX_ATTEMPTS):
+            meta = self.store.get(pk, "META")
+            seen = [r for r in map(self.item_run, self.store.query(pk, "RUN#") + self.store.query(pk, "SIM#"))
+                    if r is not None]
+            fence = max([meta["run"] if meta else 0] + seen) + 1
+            now = iso(self.clock())
+            tombstone = {"namespace": namespace, "run": fence, "purged": True, "purged_at": now,
+                         "data_classification": "synthetic", "created_at": meta["created_at"] if meta else now}
+            try:
+                self.store.transact([Replace(pk, "META", tombstone, meta["_v"]) if meta
+                                     else Put(pk, "META", tombstone)])
+            except (ConditionFailed, Contention):
+                self._backoff(attempt)
+                continue
+
+            def fenced(item):
+                run = self.item_run(item)
+                return run is None or run <= fence
+            deleted = self.store.delete_prefix(pk, "RUN#", where=fenced) + \
+                self.store.delete_prefix(pk, "SIM#", where=fenced)
+            return {"namespace": namespace, "deleted_items": deleted, "next_run": fence + 1}
+        raise ServiceBusy("purge contended; retry")
 
     # Views ------------------------------------------------------------------------------------
 
@@ -497,12 +545,19 @@ class PaymentService:
         event_id = event.get("event_id") if isinstance(event, dict) else None
         # time_ns keeps arrival order stable when several deliveries share a timestamp.
         sk = f"{self.prefix(run)}DELIVERY#{iso(now)}#{time.time_ns():020d}#{uuid.uuid4().hex[:8]}"
+        try:
+            payload_json = canonical(event) if event is not None else None
+        except (TypeError, ValueError):
+            payload_json = None
+        # Raw payloads are stored as canonical JSON text: rejected events may carry values (such
+        # as fractional numbers) that DynamoDB's attribute types cannot represent.
         item = {"received_at": iso(now), "event_id": event_id if isinstance(event_id, str) else None,
                 "type": event.get("type") if isinstance(event, dict) and isinstance(event.get("type"), str) else None,
                 "payment_id": payment_id, "outcome": outcome, "reason": reason,
                 "related_event_ids": related or [],
-                "payload_hash": digest(event) if event is not None else None,
-                "payload": event if isinstance(event, dict) and len(canonical(event)) <= 4096 else None}
+                "payload_hash": sha256(payload_json) if payload_json is not None else None,
+                "payload_json": payload_json if payload_json is not None and len(payload_json) <= 4096 else None,
+                "payload_bytes": len(payload_json) if payload_json is not None else None}
         return Put(self.pk(namespace), sk, item)
 
     def _record_rejection(self, namespace, event, reason, payment_id=None):

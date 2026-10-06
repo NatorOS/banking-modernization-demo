@@ -175,11 +175,13 @@ class SqliteStore(BaseStore):
             (pk, len(prefix), prefix)).fetchall()
         return [self._decode(pk, sk, v, data) for sk, v, data in rows]
 
-    def delete_prefix(self, pk, prefix, keep_prefix=None):
+    def delete_prefix(self, pk, prefix, keep_prefix=None, where=None):
+        """Delete items under ``prefix``; ``where(item)`` limits deletion to matching items."""
         conn = self._conn()
-        sks = [sk for (sk,) in conn.execute(
-            "SELECT sk FROM items WHERE pk=? AND substr(sk, 1, ?)=?", (pk, len(prefix), prefix))
-            if not (keep_prefix and sk.startswith(keep_prefix))]
+        sks = [sk for sk, v, data in conn.execute(
+            "SELECT sk, v, data FROM items WHERE pk=? AND substr(sk, 1, ?)=?", (pk, len(prefix), prefix))
+            if not (keep_prefix and sk.startswith(keep_prefix))
+            and (where is None or where(self._decode(pk, sk, v, data)))]
         conn.execute("BEGIN IMMEDIATE")
         try:
             conn.executemany("DELETE FROM items WHERE pk=? AND sk=?", [(pk, sk) for sk in sks])
@@ -311,11 +313,13 @@ class DynamoStore(BaseStore):
             raise ValueError("DynamoStore.query requires a sort-key prefix")
         return self._query(pk, prefix)
 
-    def delete_prefix(self, pk, prefix, keep_prefix=None):
+    def delete_prefix(self, pk, prefix, keep_prefix=None, where=None):
+        """Delete items under ``prefix``; ``where(item)`` limits deletion to matching items."""
         if not prefix:
             raise ValueError("delete_prefix requires a sort-key prefix")
-        keys = [i["sk"] for i in self._query(pk, prefix, projection=True)
-                if not (keep_prefix and i["sk"].startswith(keep_prefix))]
+        keys = [i["sk"] for i in self._query(pk, prefix, projection=where is None)
+                if not (keep_prefix and i["sk"].startswith(keep_prefix))
+                and (where is None or where(i))]
         for start in range(0, len(keys), 25):
             pending = [{"DeleteRequest": {"Key": self._key(pk, sk)}} for sk in keys[start:start + 25]]
             for _ in range(8):

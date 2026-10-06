@@ -131,9 +131,19 @@ the run. As a result:
 - in-flight submission responses from an old run fail their run check and are ignored;
 - a new run can reuse `PAY-001` without colliding.
 
-Previous-run subledger items are then purged. The simulator's history (`SIM#`) is kept,
-because a real provider's history cannot be erased. Other namespaces are never read or written.
-`POST /purge` with `{"confirm": "<namespace>"}` removes a namespace entirely.
+Items of strictly older runs are then purged. An overlapping reset that has already started a
+newer run is never deleted by an older reset's cleanup. The simulator's history (`SIM#`) is
+kept, because a real provider's history cannot be erased. Other namespaces are never read or
+written.
+
+`POST /purge` with `{"confirm": "<namespace>"}` deletes the namespace's subledger and simulator
+history but keeps generation identity: `META` becomes a tombstone fenced one past the last run.
+Writes pinned to an older run fail their run check, the next reset starts a run whose provider
+references were never issued, and events captured before the purge are rejected as `stale_run`.
+
+Delivery history stores each raw payload as canonical JSON text (`payload_json`, up to 4 KiB)
+with its hash, so rejected events with values DynamoDB cannot type (such as fractional amounts)
+still leave evidence.
 
 ## Concurrency and conflicts
 

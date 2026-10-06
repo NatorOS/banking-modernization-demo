@@ -17,8 +17,9 @@ from unittest import mock
 from modern.api import App, fixture, fixture_key
 from modern.provider import ProviderRejected, SimulatedCrash, SimulatedProvider
 from modern.reconciliation import build_report
-from modern.service import (EventConflict, IdempotencyConflict, InsufficientFunds, PaymentConflict,
-                            PaymentService, RejectedEvent, Unauthorized, ValidationError)
+from modern.service import (REJECTED_EVENT, EventConflict, IdempotencyConflict, InsufficientFunds, NotFound,
+                            PaymentConflict, PaymentService, RejectedEvent, ServiceBusy, Unauthorized,
+                            ValidationError)
 from modern.store import ConditionFailed, Contention, Put, SqliteStore
 from modern.webhook import WebhookSigner
 
@@ -460,6 +461,112 @@ class BehaviorSuite:
         self.assertEqual(self.service.snapshot("demo-other"), other_before)
         self.assert_invariants()
 
+    def run_numbers(self, ns=NS):
+        return {self.service.item_run(i) for i in self.store.query(f"NS#{ns}", "RUN#")}
+
+    def test_overlapping_reset_cleanup_keeps_newer_run(self):
+        self.submit_fixtures()
+        real_delete = self.store.delete_prefix
+        state = {"armed": True}
+
+        def delete_prefix(pk, prefix, **kwargs):
+            # Reset B starts, commits and cleans up after A committed but before A's cleanup.
+            if state.pop("armed", False):
+                state["b"] = self.service.reset(NS)
+            return real_delete(pk, prefix, **kwargs)
+
+        with mock.patch.object(self.store, "delete_prefix", side_effect=delete_prefix):
+            a = self.service.reset(NS)
+        self.assertEqual((a["run"], state["b"]["run"]), (2, 3))
+        snap = self.service.snapshot(NS)
+        self.assertEqual(snap["run"], 3)
+        self.assertEqual(self.run_numbers(), {3})
+        b = self.assert_invariants()
+        self.assertEqual((b["cash_cents"], b["reserved_cents"], b["available_cents"]), (100000, 0, 100000))
+        self.submit("PAY-001")
+        self.assertEqual(self.settle("PAY-001")["outcome"], "APPLIED")
+        self.assert_invariants()
+
+    def test_concurrent_resets_leave_a_usable_active_run(self):
+        errors, barrier = [], threading.Barrier(6)
+
+        def reset():
+            barrier.wait()
+            try:
+                self.service.reset(NS)
+            except ServiceBusy:
+                pass
+            except Exception as exc:  # noqa: BLE001 - surfaced by the assertion below
+                errors.append(exc)
+
+        threads = [threading.Thread(target=reset) for _ in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(errors, [])
+        active = self.service.snapshot(NS)
+        self.assertIn(active["run"], self.run_numbers())
+        b = self.assert_invariants()
+        self.assertEqual(b["cash_cents"], 100000)
+
+    def test_purge_preserves_generation_so_captured_events_stay_stale(self):
+        self.submit("PAY-001")
+        old_run = self.service.meta(NS)["run"]
+        stale = self.provider.settlement_event(NS, self.payment("PAY-001")["provider_idempotency_key"])
+        purged = self.service.purge(NS)
+        self.assertGreater(purged["next_run"], old_run)
+        self.assertEqual(self.run_numbers(), set())
+        with self.assertRaises(NotFound):
+            self.service.snapshot(NS)
+        with self.assertRaises(NotFound):
+            self.deliver(stale)
+        reset = self.service.reset(NS)
+        self.assertEqual(reset["run"], purged["next_run"])
+        recreated = self.submit("PAY-001")["payment"]
+        self.assertNotEqual(recreated["provider_idempotency_key"], stale["client_reference"])
+        with self.assertRaises(RejectedEvent) as ctx:
+            self.deliver(stale)
+        self.assertIn("stale_run", str(ctx.exception))
+        self.assertEqual(self.payment("PAY-001")["status"], "SUBMITTED")
+        b = self.assert_invariants()
+        self.assertEqual((b["cash_cents"], b["reserved_cents"]), (100000, 12500))
+        self.assertEqual(self.settle("PAY-001")["outcome"], "APPLIED")
+        self.assertEqual(self.assert_invariants()["cash_cents"], 87500)
+
+    def test_purge_fences_in_flight_submission_responses(self):
+        def purge_mid_flight(submission, payment):
+            self.provider.after_accept.clear()
+            self.service.purge(NS)
+
+        self.provider.after_accept.append(purge_mid_flight)
+        try:
+            self.submit("PAY-001")
+        except NotFound:
+            pass
+        self.assertEqual(self.run_numbers(), set())
+        self.service.reset(NS)
+        snap = self.service.snapshot(NS)
+        self.assertEqual((snap["payments"], snap["journal"]), ([], []))
+        self.assertEqual(self.assert_invariants()["reserved_cents"], 0)
+
+    def test_fractional_and_nested_invalid_events_are_rejected_with_evidence(self):
+        self.submit("PAY-001")
+        valid = self.provider.settlement_event(NS, self.payment("PAY-001")["provider_idempotency_key"])
+        invalid = [dict(valid, event_id="evt_fractional_1", amount_cents=1.5),
+                   dict(valid, event_id="evt_nested_float", fee={"rate": 0.25, "tiers": [1.5, None]})]
+        for event in invalid:
+            with self.subTest(event_id=event["event_id"]):
+                with self.assertRaises(RejectedEvent):
+                    self.deliver(event)
+                delivery = self.service.snapshot(NS)["deliveries"][-1]
+                self.assertEqual((delivery["event_id"], delivery["outcome"]), (event["event_id"], REJECTED_EVENT))
+                self.assertEqual(json.loads(delivery["payload_json"]), event)
+        self.assertEqual(self.service.snapshot(NS)["journal"], [])
+        self.assertEqual(self.balance()["cash_cents"], 100000)
+        self.assertEqual(self.deliver(valid)["outcome"], "APPLIED")
+        self.assert_invariants()
+
     # Storage guarantees ----------------------------------------------------------------------
 
     def test_journal_entries_are_insert_only(self):
@@ -503,6 +610,40 @@ class BehaviorSuite:
         self.assertEqual(self.app.handle("GET", "/api/namespaces/prod-bank/state")[0], 400)
         status, body = post("/payments", self.request("PAY-009"), {"Idempotency-Key": "http-key-0009"})
         self.assertEqual((status, body["payment"]["status"]), (201, "SUBMITTED"))
+
+    def test_http_router_rejects_malformed_bodies_without_changing_state(self):
+        self.submit("PAY-001")
+        self.settle("PAY-001")
+        before = self.service.snapshot(NS)
+        cases = [("/reset", b"[]"), ("/reset", b"null"), ("/reset", b'"x"'), ("/reset", b"7"),
+                 ("/reset", b'{"opening_cash_cents": 1.5}'), ("/purge", b"[]"), ("/purge", b"null"),
+                 ("/payments", b"[]"), ("/demo/submit-fixtures", b"null"),
+                 ("/demo/duplicate-settlement", b'{"variant": "abc"}'),
+                 ("/demo/duplicate-settlement", b'{"variant": 1.5}'),
+                 ("/demo/duplicate-settlement", b'{"variant": true}'),
+                 ("/demo/duplicate-settlement", b'{"variant": -1}'),
+                 ("/demo/duplicate-settlement", b'{"payment_id": ["PAY-001"]}'),
+                 ("/demo/replay-settlement", b'{"payment_id": 7}'),
+                 ("/demo/replay-return", b'{"payment_id": null}'),
+                 ("/demo/provider-event", b'{"type": "settled", "payment_id": "PAY-001", "variant": "x"}'),
+                 ("/demo/provider-event", b'{"type": "returned", "payment_id": "PAY-001", "return_code": 5}'),
+                 ("/demo/provider-event", b'{"type": "returned"}'),
+                 ("/demo/redeliver", b'{"event_id": {"a": 1}}'),
+                 ("/demo/arm-timeout", b"[]")]
+        for path, raw in cases:
+            with self.subTest(path=path, body=raw):
+                status, _, out, _ = self.app.handle("POST", f"/api/namespaces/{NS}{path}",
+                                                    {"Idempotency-Key": "malformed-key-1"}, raw)
+                self.assertEqual(status, 400)
+                self.assertIn("code", json.loads(out)["error"])
+        self.assertEqual(self.service.snapshot(NS), before)
+
+    def test_http_router_returns_structured_500_for_unexpected_errors(self):
+        with mock.patch.object(self.service, "snapshot", side_effect=RuntimeError("boom")), \
+                self.assertLogs("modern.api", "ERROR"):
+            status, _, out, _ = self.app.handle("GET", f"/api/namespaces/{NS}/state")
+        self.assertEqual((status, json.loads(out)["error"]["code"]), (500, "internal_error"))
+        self.assertNotIn("boom", out.decode())
 
     def test_lambda_handler_routes_http_api_events(self):
         import modern.lambda_handler as handler_module
