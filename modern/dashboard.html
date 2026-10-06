@@ -31,6 +31,7 @@
   .kpi { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
   .kpi b { display: block; font-size: 17px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .kpi span { color: var(--muted); font-size: 12px; }
+button:disabled { opacity: .45; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -53,7 +54,8 @@
       <button data-act="duplicate-settlement">4b · Duplicate settlement (new event ID)</button>
       <button data-act="return-pay-002">5 · Return PAY-002 (R01)</button>
       <button data-act="replay-return">6 · Replay return</button>
-      <button data-act="provider-event" data-label="6b · Duplicate return"
+      <button data-act="provider-event" data-label="6b · Duplicate return" data-requires-returned="PAY-002" disabled
+              title="Enabled once PAY-002 is RETURNED (after step 5)"
               data-body='{"payment_id": "PAY-002", "type": "returned", "variant": 2}'>6b · Duplicate return (new event ID)</button>
       <button data-act="reconcile-pending">Reconcile pending</button>
       <button data-act="refresh">Refresh</button>
@@ -134,9 +136,10 @@ async function refresh() {
   if (status !== 200) {
     $("balances").innerHTML = `<p class="warn">${esc(data.error?.message || "No state")} — press Reset.</p>`;
     ["payments","journal","events","recon"].forEach(id => $(id).innerHTML = "");
-    $("run").textContent = ""; return;
+    $("run").textContent = ""; guardDuplicateActions([]); return;
   }
   const s = data.snapshot, a = data.reconciliation.actual;
+  guardDuplicateActions(s.payments);
   $("run").textContent = `run ${s.run} · provider ${data.provider.name} (${data.provider.mode}) · store ${data.store}`;
   $("balances").innerHTML = `<div class="kpis">
     <div class="kpi"><span>Opening cash</span><b>${cents(a.opening_cash_cents)}</b></div>
@@ -193,6 +196,14 @@ async function act(name, label, body = {}) {
     if (name === "reset") stage = "";
   }
   await refresh();
+}
+
+// A duplicate of an effect is only meaningful once the original effect exists; otherwise the
+// "duplicate" would itself be the first return and move money.
+function guardDuplicateActions(payments) {
+  document.querySelectorAll("button[data-requires-returned]").forEach(b => {
+    b.disabled = !payments.some(p => p.payment_id === b.dataset.requiresReturned && p.status === "RETURNED");
+  });
 }
 
 function clearLastResponse() {

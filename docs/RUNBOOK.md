@@ -70,7 +70,7 @@ Keep namespace `demo-local` and click in order:
 5. **Return PAY-002 (R01)**: PAY-002 is `RETURNED`; cash $850.00; debits and credits $220.00;
    eight journal rows; reconciliation shows `PASS` against `after_return` (14/14).
 6. **Replay return**: `DUPLICATE_EVENT`; nothing changes.
-   - **6b · Duplicate return (new event ID)**: a new simulated return event for PAY-002 is
+   - **6b · Duplicate return (new event ID)** (enabled only once PAY-002 is `RETURNED`): a new simulated return event for PAY-002 is
      `DUPLICATE_EFFECT`; cash $850.00, debits and credits $220.00 and eight journal rows unchanged.
 
 [INTERVIEW_TALK_TRACK.md](INTERVIEW_TALK_TRACK.md) is a timed five-minute narration of this sequence.
