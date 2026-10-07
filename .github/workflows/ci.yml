@@ -30,3 +30,23 @@ jobs:
         with:
           name: reconciliation-report
           path: output/reconciliation.json
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - name: Dashboard logic (6b guard, reconciliation stage)
+        run: npm test
+      - name: Type check and single-file build
+        run: npm run build
+      - name: Built page keeps the server's substitution tokens
+        run: grep -q '__BACKEND_LABEL__' dist/index.html && grep -q 'value="demo-local"' dist/index.html

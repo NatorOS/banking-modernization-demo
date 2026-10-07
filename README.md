@@ -43,7 +43,7 @@ The modern path is added alongside the unchanged legacy batch:
 ```bash
 python3 -m unittest discover -s tests -v   # legacy + modern suites (DynamoDB half needs requirements-dev.txt)
 python3 -m modern.demo run                 # scripted five-minute demo, writes output/reconciliation.json
-python3 -m modern.server                   # dashboard at http://127.0.0.1:8000/
+python3 -m scripts.dashboard               # dashboard at http://127.0.0.1:8000/ (Arc UI once web/ is built)
 ```
 
 - [docs/RUNBOOK.md](docs/RUNBOOK.md): five-minute demo, expected results, reset

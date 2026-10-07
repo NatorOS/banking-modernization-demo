@@ -53,11 +53,21 @@ isolation (an old-run event is rejected as `stale_run`).
 
 ## 3. Dashboard (about 3 min)
 
+The dashboard UI is built with [Arc](https://uiarc.dev) components in `web/` (React, free Arc
+items only). Build it once with Node 22+, then start the launcher:
+
 ```bash
-python3 -m modern.server            # http://127.0.0.1:8000/
+(cd web && npm ci && npm run build)   # writes web/dist/index.html, one self-contained page
+python3 -m scripts.dashboard          # http://127.0.0.1:8000/
 ```
 
-Keep namespace `demo-local` and click in order:
+`scripts.dashboard` takes the same flags as `modern.server` (for AWS: `--remote <ApiUrl> --profile
+<profile>`). Without a build it falls back to the classic `modern/dashboard.html`, which
+`python3 -m modern.server` still serves directly, so the demo also runs without Node.
+The launcher lives outside `modern/`, so the Lambda package and its deployed hash are unchanged.
+
+Keep namespace `demo-local` and click in order. The buttons keep the same numbers in both UIs;
+the Arc UI marks the next main-flow step as the primary button and shows progress above them.
 
 1. **Reset namespace**: starts a new run; cash $1,000.00, no payments.
 2. **Submit fixtures**: three `SUBMITTED` payments; reserved $185.00, available $815.00; no journal rows.
