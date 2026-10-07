@@ -301,6 +301,7 @@ export function App() {
             <h2 id="payments-heading" className={styles.heading}>Payments</h2>
             <div className={styles.tableScroll}>
               <SortableDataTable
+                key={payments.length ? "rows" : "empty"}
                 caption="Payments"
                 rowKey="payment_id"
                 emptyMessage="No payments yet. Submit fixtures to create them."
@@ -309,7 +310,7 @@ export function App() {
                 columns={[
                   { key: "payment_id", label: "Payment", sortable: true },
                   { key: "amount_cents", label: "Amount", numeric: true, sortable: true, render: v => cents(v as number) },
-                  { key: "status", label: "Status", sortable: true, render: (v, row) => (
+                  { key: "status", label: "Status", sortable: true, width: 240, render: (v, row) => (
                     <span className={styles.inline}>
                       <Badge tone={statusTone(String(v))} size="sm">{String(v)}</Badge>
                       {row.pending_return ? <Badge tone="info" size="sm">Return parked</Badge> : null}
@@ -363,18 +364,19 @@ export function App() {
             <h2 id="journal-heading" className={styles.heading}>Immutable journal</h2>
             <div className={styles.tableScroll}>
               <SortableDataTable
+                key={data.snapshot.journal.length ? "rows" : "empty"}
                 caption="Journal entries"
                 rowKey="entry_id"
                 emptyMessage="No journal entries yet. Settlement posts the first pair."
                 rows={data.snapshot.journal.map(j => ({ ...j }))}
                 columns={[
-                  { key: "entry_id", label: "Entry", render: v => <Code value={v} /> },
-                  { key: "effect", label: "Effect", sortable: true },
-                  { key: "side", label: "Side" },
-                  { key: "account", label: "Account" },
+                  { key: "entry_id", label: "Entry", width: 240, render: v => <Code value={v} /> },
+                  { key: "effect", label: "Effect", sortable: true, width: 140 },
+                  { key: "side", label: "Side", width: 96 },
+                  { key: "account", label: "Account", width: 170 },
                   { key: "amount_cents", label: "Amount", numeric: true, render: v => cents(v as number) },
                   { key: "event_id", label: "Event", render: v => <Code value={v} /> },
-                  { key: "posted_at", label: "Posted", sortable: true },
+                  { key: "posted_at", label: "Posted", sortable: true, width: 250 },
                 ]}
               />
             </div>
@@ -385,16 +387,17 @@ export function App() {
             <p className={styles.muted}>Every delivery, including duplicates and rejections. Newest first.</p>
             <div className={styles.tableScroll}>
               <SortableDataTable
+                key={data.snapshot.deliveries.length ? "rows" : "empty"}
                 caption="Event deliveries"
                 rowKey="key"
                 emptyMessage="No provider events yet."
                 rows={data.snapshot.deliveries.map((d, i) => ({ ...d, key: String(i) })).reverse()}
                 columns={[
-                  { key: "received_at", label: "Received" },
+                  { key: "received_at", label: "Received", width: 250 },
                   { key: "event_id", label: "Event ID", render: v => <Code value={v} /> },
                   { key: "type", label: "Type" },
                   { key: "payment_id", label: "Payment" },
-                  { key: "outcome", label: "Outcome", render: v => <Badge tone={outcomeTone(String(v))} size="sm">{String(v)}</Badge> },
+                  { key: "outcome", label: "Outcome", width: 200, render: v => <Badge tone={outcomeTone(String(v))} size="sm">{String(v)}</Badge> },
                   { key: "reason", label: "Reason" },
                 ]}
               />

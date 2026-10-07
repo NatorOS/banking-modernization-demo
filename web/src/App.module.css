@@ -52,7 +52,7 @@
 .inline { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .code {
   display: inline-block;
-  max-width: 180px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
