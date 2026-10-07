@@ -57,13 +57,13 @@
   - A Python 3.13 Lambda under a restricted execution role.
   - DynamoDB transactions on an on-demand table.
   - The dashboard reaches the API through a local SigV4 signing proxy, so credentials never enter the browser.
-- **Verified on October 6:**
+- **Verified (details in [AWS_VALIDATION.md](AWS_VALIDATION.md)):**
   - The 36-test shared behavioral suite passed on real DynamoDB, with no emulator.
   - 15 concurrency runs passed.
   - The signed demo reached PASS 14/14 at $850 cash.
   - Through the live API, eight simultaneous same-key submissions produced one payment, and eight $4 payments against $10 accepted exactly two.
-- **What real DynamoDB caught that the emulator didn't:** a false `PaymentConflict` in a same-key race, because the cancellation blamed a different item's condition. The service now rereads the durable claim before classifying the failure. A regression test covers it, the fix is redeployed, and the deployed package hash matches the verified commit (`cbb262b`).
-- **Not yet verified:** the newer concurrent duplicate-webhook tests have run only on SQLite and moto. Real-DynamoDB verification is pending. The 6b button is local dashboard HTML calling the already-deployed `provider-event` action, so it works against AWS without a redeploy. The Lambda zip bundles the dashboard, though, so its hash will differ from the deployed code until the next deploy.
+- **What real DynamoDB caught that the emulator didn't:** a false `PaymentConflict` in a same-key race, because the cancellation blamed a different item's condition. The service now rereads the durable claim before classifying the failure. A regression test covers it, the fix is redeployed, and the deployed package hash matches a local build of this branch.
+- **Duplicate webhooks on real DynamoDB:** six concurrent copies of a settlement or a return, with the same event ID or distinct IDs, post exactly one effect. 35 concurrency runs passed, 20 of them the new webhook scenarios. On the AWS-backed dashboard, 6b returned `DUPLICATE_EFFECT` and left $850, $220/$220, eight rows and PASS 14/14 unchanged.
 - **What stays simulated:** the provider runs inside that Lambda. AWS here proves transactions, concurrency and IAM boundaries, not a bank integration.
 
 ## 4:45–5:00 · Partner roles and close
