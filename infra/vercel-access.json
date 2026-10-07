@@ -1,0 +1,141 @@
+{
+ "AWSTemplateFormatVersion": "2010-09-09",
+ "Description": "Optional: lets the Vercel-hosted dashboard call the demo HTTP API through Vercel OIDC (no stored AWS keys). Production deployments of one Vercel project only; dashboard routes only.",
+ "Parameters": {
+  "TeamSlug": {
+   "Type": "String",
+   "AllowedPattern": "^[a-z0-9][a-z0-9-]{0,99}$",
+   "Description": "Vercel team slug (team issuer mode)"
+  },
+  "ProjectName": {
+   "Type": "String",
+   "AllowedPattern": "^[a-z0-9._-]{1,100}$",
+   "Description": "Vercel project name"
+  },
+  "ApiId": {
+   "Type": "String",
+   "AllowedPattern": "^[a-z0-9]{10}$",
+   "Description": "HTTP API id from the app stack's ApiUrl"
+  },
+  "ExistingOidcProviderArn": {
+   "Type": "String",
+   "Default": "",
+   "Description": "Set if oidc.vercel.com/<team> is already an IAM identity provider in this account"
+  }
+ },
+ "Conditions": {
+  "CreateProvider": {
+   "Fn::Equals": [
+    {
+     "Ref": "ExistingOidcProviderArn"
+    },
+    ""
+   ]
+  }
+ },
+ "Resources": {
+  "VercelOidcProvider": {
+   "Type": "AWS::IAM::OIDCProvider",
+   "Condition": "CreateProvider",
+   "Properties": {
+    "Url": {
+     "Fn::Sub": "https://oidc.vercel.com/${TeamSlug}"
+    },
+    "ClientIdList": [
+     {
+      "Fn::Sub": "https://vercel.com/${TeamSlug}"
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "Project",
+      "Value": "banking-modernization-demo"
+     }
+    ]
+   }
+  },
+  "DashboardProxyRole": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "Description": "Assumed by the Vercel dashboard proxy (production only) to SigV4-sign dashboard API calls.",
+    "MaxSessionDuration": 3600,
+    "AssumeRolePolicyDocument": {
+     "Fn::Sub": [
+      "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [{\n    \"Effect\": \"Allow\",\n    \"Principal\": {\"Federated\": \"${ProviderArn}\"},\n    \"Action\": \"sts:AssumeRoleWithWebIdentity\",\n    \"Condition\": {\"StringEquals\": {\n      \"oidc.vercel.com/${TeamSlug}:aud\": \"https://vercel.com/${TeamSlug}\",\n      \"oidc.vercel.com/${TeamSlug}:sub\": \"owner:${TeamSlug}:project:${ProjectName}:environment:production\"\n    }}\n  }]\n}",
+      {
+       "ProviderArn": {
+        "Fn::If": [
+         "CreateProvider",
+         {
+          "Ref": "VercelOidcProvider"
+         },
+         {
+          "Ref": "ExistingOidcProviderArn"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    "Policies": [
+     {
+      "PolicyName": "invoke-dashboard-routes",
+      "PolicyDocument": {
+       "Version": "2012-10-17",
+       "Statement": [
+        {
+         "Sid": "DashboardRoutesOnly",
+         "Effect": "Allow",
+         "Action": "execute-api:Invoke",
+         "Resource": [
+          {
+           "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/GET/api/health"
+          },
+          {
+           "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/GET/api/legacy/baseline"
+          },
+          {
+           "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/GET/api/namespaces/demo-*/state"
+          },
+          {
+           "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/GET/api/namespaces/demo-*/reconciliation"
+          },
+          {
+           "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/POST/api/namespaces/demo-*/reset"
+          },
+          {
+           "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/POST/api/namespaces/demo-*/reconcile-pending"
+          },
+          {
+           "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/POST/api/namespaces/demo-*/demo/*"
+          }
+         ]
+        }
+       ]
+      }
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "Project",
+      "Value": "banking-modernization-demo"
+     }
+    ]
+   }
+  }
+ },
+ "Outputs": {
+  "RoleArn": {
+   "Value": {
+    "Fn::GetAtt": [
+     "DashboardProxyRole",
+     "Arn"
+    ]
+   },
+   "Description": "Set as AWS_ROLE_ARN on the Vercel project"
+  },
+  "Scope": {
+   "Value": "Dashboard routes only (no purge, raw payments or events); production deployments of one Vercel project."
+  }
+ }
+}

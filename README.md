@@ -46,6 +46,8 @@ python3 -m modern.demo run                 # scripted five-minute demo, writes o
 python3 -m scripts.dashboard               # dashboard at http://127.0.0.1:8000/ (Arc UI once web/ is built)
 ```
 
+To host the dashboard on Vercel (login-protected, OIDC to AWS, no stored keys), see [docs/VERCEL.md](docs/VERCEL.md).
+
 - [docs/RUNBOOK.md](docs/RUNBOOK.md): five-minute demo, expected results, reset
 - [docs/DESIGN.md](docs/DESIGN.md): state machine, ledger semantics, idempotency, leases, reset generations
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): diagram and partner roles
