@@ -3,8 +3,8 @@
 **One rule throughout:** the payment provider is a deterministic simulator in this repo. It uses signed HMAC webhooks, touches no payment rails and moves no money. The AWS infrastructure is real: it is deployed in account `784620264480`, `us-east-1` (see [AWS_VALIDATION.md](AWS_VALIDATION.md)). No Column or other core provider is connected.
 
 **Before the call:**
-- Refresh the AWS login.
-- Build the Arc UI once (`cd web && npm ci && npm run build`), then start `python -m scripts.dashboard --remote https://15ggin9fcd.execute-api.us-east-1.amazonaws.com --profile natoros --namespace demo-aws --port 8001` and open `http://127.0.0.1:8001/`.
+- Open [the hosted dashboard](https://banking-modernization-demo.vercel.app) and sign in to Vercel. It uses the real AWS backend in `demo-aws`; the provider remains simulated.
+- AWS fallback: refresh the AWS login. Build the Arc UI once (`cd web && npm ci && npm run build`), then start `python -m scripts.dashboard --remote https://15ggin9fcd.execute-api.us-east-1.amazonaws.com --profile natoros --namespace demo-aws --port 8001` and open `http://127.0.0.1:8001/`.
 - Fallback: run the local dashboard (`python -m scripts.dashboard`, `demo-local`); without a build, `modern.server` serves the classic page. The steps and numbers are identical.
 
 ## 0:00–0:30 · Framing
@@ -56,7 +56,7 @@
   - API Gateway HTTP API with IAM auth; an unsigned request gets 403.
   - A Python 3.13 Lambda under a restricted execution role.
   - DynamoDB transactions on an on-demand table.
-  - The dashboard reaches the API through a local SigV4 signing proxy, so credentials never enter the browser.
+  - The hosted dashboard uses Vercel OIDC → AWS STS → SigV4 to reach the API with short-lived credentials. The local fallback uses your AWS profile through a local signing proxy; credentials never enter the browser.
 - **Verified (details in [AWS_VALIDATION.md](AWS_VALIDATION.md)):**
   - The 36-test shared behavioral suite passed on real DynamoDB, with no emulator.
   - 15 concurrency runs passed.
@@ -64,6 +64,7 @@
   - Through the live API, eight simultaneous same-key submissions produced one payment, and eight $4 payments against $10 accepted exactly two.
 - **What real DynamoDB caught that the emulator didn't:** a false `PaymentConflict` in a same-key race, because the cancellation blamed a different item's condition. The service now rereads the durable claim before classifying the failure. A regression test covers it, the fix is redeployed, and the deployed package hash matches a local build of this branch.
 - **Duplicate webhooks on real DynamoDB:** six concurrent copies of a settlement or a return, with the same event ID or distinct IDs, post exactly one effect. 35 concurrency runs passed, 20 of them the new webhook scenarios. On the AWS-backed dashboard, 6b returned `DUPLICATE_EFFECT` and left $850, $220/$220, eight rows and PASS 14/14 unchanged.
+- **Hosted walkthrough:** the protected Vercel deployment completed steps 1 → 6b against real AWS at PASS 14/14, $850 cash, $220 debits/credits and eight journal rows. Devin measured 0.6–1.1 seconds per action including the state refresh in one walkthrough; this is an observation, not a performance benchmark. [Evidence and route checks](https://github.com/NatorOS/banking-modernization-demo/pull/5) are in PR #5.
 - **What stays simulated:** the provider runs inside that Lambda. AWS here proves transactions, concurrency and IAM boundaries, not a bank integration.
 
 ## 4:45–5:00 · Partner roles and close
