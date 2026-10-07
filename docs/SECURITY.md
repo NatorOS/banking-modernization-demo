@@ -20,6 +20,10 @@
   SigV4. The local dashboard (`modern.server --remote`) and CLI (`modern.demo --remote`) sign
   with botocore using the operator's profile. The browser never sees credentials, and the proxy
   binds to `127.0.0.1` only.
+- The optional Vercel-hosted dashboard ([VERCEL.md](VERCEL.md)) signs from a Vercel Function with
+  15-minute credentials obtained through Vercel OIDC (no stored keys). Its role trusts one project's
+  production deployments only, may invoke only the dashboard routes (no purge, raw payments or events),
+  and the site sits behind Vercel Authentication.
 - Provider events must carry `X-Provider-Timestamp` and `X-Provider-Signature: v1=<hmac>` over
   `"<timestamp>.<raw body>"`. They are verified with a constant-time comparison and a 300 s
   replay window before parsing. Replays inside the window are caught by event-ID idempotency,

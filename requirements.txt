@@ -1,0 +1,2 @@
+# Installed by Vercel for the hosted dashboard proxy (api/proxy.py) only. The demo itself needs no packages.
+botocore>=1.35,<2

@@ -25,7 +25,7 @@ jobs:
       - name: Five-minute demo, end to end (local SQLite)
         run: python -m modern.demo run && python -m modern.demo edge-cases
       - name: Lambda package and template sanity
-        run: python scripts/package_lambda.py output/lambda.zip && python -m json.tool infra/app.json > /dev/null
+        run: python scripts/package_lambda.py output/lambda.zip && python -m json.tool infra/app.json > /dev/null && python -m json.tool infra/vercel-access.json > /dev/null && python -m json.tool vercel.json > /dev/null
       - uses: actions/upload-artifact@v4
         with:
           name: reconciliation-report
