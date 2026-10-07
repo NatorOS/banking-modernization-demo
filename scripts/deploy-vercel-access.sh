@@ -15,7 +15,7 @@ access_stack="${VERCEL_ACCESS_STACK:-banking-modernization-demo-vercel-access}"
 if [[ "$region" != "$expected_region" ]]; then
   echo "Region $region does not match expected $expected_region; nothing deployed." >&2; exit 1
 fi
-actual_account="$(aws sts get-caller-identity --profile "$profile" --query Account --output text)"
+actual_account="$(aws sts get-caller-identity --profile "$profile" --region "$region" --query Account --output text)"
 if [[ "$actual_account" != "$expected_account" ]]; then
   echo "Account mismatch (profile resolves to a different account); nothing deployed." >&2; exit 1
 fi
