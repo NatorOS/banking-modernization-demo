@@ -14,6 +14,7 @@ replacement. The legacy batch (`legacy/batch.py`) is unchanged and is still the 
 | `modern/reconciliation.py` | Expected-vs-actual report, balance invariants, and a provider-vs-subledger comparison. |
 | `modern/api.py` | HTTP router shared by the local server and the Lambda handler. |
 | `modern/server.py`, `modern/dashboard.html` | Local dashboard. Serves SQLite directly, or acts as a SigV4 signing proxy to the IAM-protected API. |
+| `web/`, `scripts/dashboard.py` | Arc (uiarc.dev) React dashboard, built to one self-contained `web/dist/index.html`; the launcher serves it through `modern.server`, falling back to the classic page. Outside the Lambda package. |
 | `modern/demo.py` | Repeatable CLI demo plus edge-case run, local or remote. |
 
 ## State machine

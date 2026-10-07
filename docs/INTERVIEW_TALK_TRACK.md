@@ -4,8 +4,8 @@
 
 **Before the call:**
 - Refresh the AWS login.
-- Start `python -m modern.server --remote https://15ggin9fcd.execute-api.us-east-1.amazonaws.com --profile natoros --namespace demo-aws --port 8001` and open `http://127.0.0.1:8001/`.
-- Fallback: run the local dashboard (`python -m modern.server`, `demo-local`). The steps and numbers are identical.
+- Build the Arc UI once (`cd web && npm ci && npm run build`), then start `python -m scripts.dashboard --remote https://15ggin9fcd.execute-api.us-east-1.amazonaws.com --profile natoros --namespace demo-aws --port 8001` and open `http://127.0.0.1:8001/`.
+- Fallback: run the local dashboard (`python -m scripts.dashboard`, `demo-local`); without a build, `modern.server` serves the classic page. The steps and numbers are identical.
 
 ## 0:00–0:30 · Framing
 - This is an integration and reconciliation layer around a modern banking core, not a core replacement.

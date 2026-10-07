@@ -1,0 +1,62 @@
+.page {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  padding: 32px clamp(16px, 4vw, 32px);
+  display: grid;
+  gap: 24px;
+  box-sizing: border-box;
+}
+.page > * { min-width: 0; }
+
+.header { display: grid; gap: 12px; }
+.titleRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 500;
+  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-display);
+}
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.muted { color: var(--text-secondary); margin: 0; }
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-surface);
+  background: var(--surface);
+  padding: 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-content: start;
+  min-width: 0;
+}
+.cardHead { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.cardHead > * { min-width: 0; max-width: 100%; }
+.heading { margin: 0; font-size: var(--text-lg); font-weight: 500; }
+.subheading { margin: 0; font-size: var(--text-sm); font-weight: 500; color: var(--text-secondary); }
+.namespace { width: min(100%, 280px); }
+
+.groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.group { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.hint { margin: 0; font-size: var(--text-xs); color: var(--text-secondary); }
+.last { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+
+.split { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: 16px; align-items: start; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; align-items: start; }
+
+.tableScroll { overflow-x: auto; overscroll-behavior-x: contain; min-width: 0; }
+.inline { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.code {
+  display: inline-block;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-xs);
+}
