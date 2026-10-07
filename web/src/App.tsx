@@ -374,7 +374,7 @@ export function App() {
                   { key: "effect", label: "Effect", sortable: true, width: 140 },
                   { key: "side", label: "Side", width: 96 },
                   { key: "account", label: "Account", width: 170 },
-                  { key: "amount_cents", label: "Amount", numeric: true, render: v => cents(v as number) },
+                  { key: "amount_cents", label: "Amount", numeric: true, width: 120, render: v => cents(v as number) },
                   { key: "event_id", label: "Event", render: v => <Code value={v} /> },
                   { key: "posted_at", label: "Posted", sortable: true, width: 250 },
                 ]}
