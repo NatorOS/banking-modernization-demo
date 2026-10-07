@@ -57,6 +57,9 @@ real; the payment provider is the in-Lambda simulator.
 - `curl -X POST https://<deployment>/api/namespaces/demo-aws/purge` (with a bypass or session) returns
   `404 not_proxied`; unsigned calls straight to the API Gateway URL still return `403`.
 
+Signed-in checks from a terminal: `vercel curl /api/health --deployment <url>`. It creates a
+Protection Bypass for Automation secret on the project; revoke it under Deployment Protection when done.
+
 ## Remove
 
 Delete the Vercel project and the `banking-modernization-demo-vercel-access` stack. The app and
