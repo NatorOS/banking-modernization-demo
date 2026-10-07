@@ -40,12 +40,23 @@ fault-injection hooks for crash/race scenarios. It runs from the operator's mach
 remote demo and API concurrency checks separately exercise the deployed Lambda role, IAM,
 routing and runtime. Neither is a claim of production readiness or exhaustive race coverage.
 
-## Pending follow-ups
+## Duplicate-webhook follow-up verification
 
-- **Tests added after this verification have not run on real DynamoDB.** Four concurrent
-  duplicate-webhook tests (settlement and return, each with the same event ID and with
-  distinct event IDs for one effect) and the dashboard 6b duplicate-return check have run only
-  on SQLite and moto. Run the commands below to verify them; `--filter concurrent` includes them.
+The four added concurrent duplicate-webhook tests now pass against real DynamoDB, without
+moto or request serialization. `--filter concurrent --repeat 5` ran seven scenarios five
+times: **35 tests passed**, including **20 runs of the four new webhook scenarios**. The
+updated local/moto suite also passes all **91 tests**.
+
+The full AWS-backed dashboard sequence through 6b was exercised. The button was disabled
+after reset and after settlement, enabled once PAY-002 was RETURNED, then returned
+`DUPLICATE_EFFECT` without changing the balance or journal. Final cash remained 85000 cents,
+debit/credit totals 22000 cents each, eight journal rows, and reconciliation PASS 14/14.
+The app was redeployed and the rebuilt Lambda package hash matches the deployed hash.
+See [follow-up evidence](evidence/aws-webhook-followup.json) and
+[AWS 6b screenshot](evidence/aws-6b-dashboard.jpg).
+
+## Remaining follow-up
+
 - **Scoped deploy role.** Deployment used the operator's root login. Replace it with a deploy
   role limited to the application stack (CloudFormation, Lambda, API Gateway, CloudWatch Logs,
   the simulator secret, and `iam:PassRole` for the Lambda execution role only). IAM has not

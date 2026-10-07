@@ -6,7 +6,7 @@
     "function": "banking-modernization-demo-app-api",
     "runtime": "python3.13",
     "last_update": "Successful",
-    "code_sha256": "ptq5xx5HpuWddrhM4tqWPQGWaG4XuA/0jMTuiyXI9RI=",
+    "code_sha256": "sF4NeW3GcyRJXcU5vpHRGpdH4r8D9hN2SgxFd1W4ss4=",
     "package_matches_deployed": true
   },
   "real_dynamodb": {
@@ -103,5 +103,30 @@
     "unexplained_differences": 0,
     "passed_invariants": 14,
     "total_invariants": 14
+  },
+  "webhook_followup": {
+    "tested_at": "2026-10-07T00:19:06.001622Z",
+    "source_head": "0d72b65068daf0907b2553e1c3eb8ccb4b2d2b9b",
+    "code_sha256": "sF4NeW3GcyRJXcU5vpHRGpdH4r8D9hN2SgxFd1W4ss4=",
+    "package_matches_deployed": true,
+    "duplicate_return": {
+      "outcome": "DUPLICATE_EFFECT",
+      "balance_unchanged": true,
+      "journal_unchanged": true,
+      "journal_rows": 8,
+      "cash_cents": 85000,
+      "reconciliation": "PASS"
+    },
+    "concurrency": {
+      "tests_run": 35,
+      "repeat": 5,
+      "success": true,
+      "moto": false,
+      "request_lock": false,
+      "duration_seconds": 62.37,
+      "tested_at": "2026-10-07T00:18:17.628502+00:00",
+      "new_webhook_scenario_runs": 20
+    },
+    "local_moto_tests_passed": 91
   }
 }
